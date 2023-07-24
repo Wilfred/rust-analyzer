@@ -12,7 +12,7 @@ use std::{
 
 use command_group::{CommandGroup, GroupChild};
 use crossbeam_channel::{never, select, unbounded, Receiver, Sender};
-use paths::AbsPathBuf;
+use paths::{AbsPath, AbsPathBuf};
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use stdx::process::streaming_output;
@@ -98,8 +98,8 @@ impl FlycheckHandle {
     }
 
     /// Schedule a re-start of the cargo check worker.
-    pub fn restart(&self) {
-        self.sender.send(StateChange::Restart).unwrap();
+    pub fn restart(&self, saved_file: Option<AbsPathBuf>) {
+        self.sender.send(StateChange::Restart { saved_file }).unwrap();
     }
 
     /// Stop this cargo check worker.
@@ -150,7 +150,7 @@ pub enum Progress {
 }
 
 enum StateChange {
-    Restart,
+    Restart { saved_file: Option<AbsPathBuf> },
     Cancel,
 }
 
@@ -210,7 +210,7 @@ impl FlycheckActor {
                     tracing::debug!(flycheck_id = self.id, "flycheck cancelled");
                     self.cancel_check_process();
                 }
-                Event::RequestStateChange(StateChange::Restart) => {
+                Event::RequestStateChange(StateChange::Restart { saved_file }) => {
                     // Cancel the previously spawned process
                     self.cancel_check_process();
                     while let Ok(restart) = inbox.recv_timeout(Duration::from_millis(50)) {
@@ -220,12 +220,15 @@ impl FlycheckActor {
                         }
                     }
 
-                    let command = self.check_command();
-                    tracing::debug!(?command, "will restart flycheck");
+                    let command = match self.check_command(saved_file.as_deref()) {
+                        Some(c) => c,
+                        None => continue,
+                    };
+                    tracing::debug!(?command, "restarting flycheck");
                     match CargoHandle::spawn(command) {
                         Ok(cargo_handle) => {
                             tracing::debug!(
-                                command = ?self.check_command(),
+                                command = ?self.check_command(saved_file.as_deref()),
                                 "did  restart flycheck"
                             );
                             self.cargo_handle = Some(cargo_handle);
@@ -234,7 +237,7 @@ impl FlycheckActor {
                         Err(error) => {
                             self.report_progress(Progress::DidFailToRestart(format!(
                                 "Failed to run the following command: {:?} error={}",
-                                self.check_command(),
+                                self.check_command(saved_file.as_deref()),
                                 error
                             )));
                         }
@@ -249,7 +252,7 @@ impl FlycheckActor {
                     if res.is_err() {
                         tracing::error!(
                             "Flycheck failed to run the following command: {:?}",
-                            self.check_command()
+                            self.check_command(None) // fixme
                         );
                     }
                     self.report_progress(Progress::DidFinish(res));
@@ -285,16 +288,13 @@ impl FlycheckActor {
 
     fn cancel_check_process(&mut self) {
         if let Some(cargo_handle) = self.cargo_handle.take() {
-            tracing::debug!(
-                command = ?self.check_command(),
-                "did  cancel flycheck"
-            );
+            tracing::debug!(command = ?self.check_command(None), "did  cancel flycheck");
             cargo_handle.cancel();
             self.report_progress(Progress::DidCancel);
         }
     }
 
-    fn check_command(&self) -> Command {
+    fn check_command(&self, saved_file: Option<&AbsPath>) -> Option<Command> {
         let (mut cmd, args) = match &self.config {
             FlycheckConfig::CargoCommand {
                 command,
@@ -339,7 +339,7 @@ impl FlycheckActor {
                     }
                 }
                 cmd.envs(extra_env);
-                (cmd, extra_args)
+                (cmd, extra_args.clone())
             }
             FlycheckConfig::CustomCommand {
                 command,
@@ -368,12 +368,23 @@ impl FlycheckActor {
                     }
                 }
 
-                (cmd, args)
+                let placeholder_i = args.iter().position(|arg| arg == "$saved_file");
+                match (placeholder_i, saved_file) {
+                    (Some(i), Some(saved_file)) => {
+                        let mut args = args.clone();
+                        args[i] = saved_file.to_string();
+                        (cmd, args)
+                    }
+                    (None, _) => (cmd, args.clone()),
+                    (Some(_), None) => {
+                        return None;
+                    }
+                }
             }
         };
 
         cmd.args(args);
-        cmd
+        Some(cmd)
     }
 
     fn send(&self, check_task: Message) {
