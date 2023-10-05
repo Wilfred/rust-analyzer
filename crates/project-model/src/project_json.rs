@@ -56,7 +56,7 @@ use rustc_hash::FxHashMap;
 use serde::{de, Deserialize};
 use std::path::PathBuf;
 
-use crate::cfg_flag::CfgFlag;
+use crate::{cfg_flag::CfgFlag, TargetKind};
 
 /// Roots and crates that compose this Rust project.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -87,6 +87,22 @@ pub struct Crate {
     pub(crate) exclude: Vec<AbsPathBuf>,
     pub(crate) is_proc_macro: bool,
     pub(crate) repository: Option<String>,
+    pub build_info: Option<BuildInfo>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BuildInfo {
+    pub manifest_file: AbsPathBuf,
+    pub target_label: String,
+    pub target_kind: TargetKind,
+    pub runnables: Runnables,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Runnables {
+    pub check: Vec<String>,
+    pub run: Vec<String>,
+    pub test: Vec<String>,
 }
 
 impl ProjectJson {
@@ -121,6 +137,16 @@ impl ProjectJson {
                         None => (vec![root_module.parent().unwrap().to_path_buf()], Vec::new()),
                     };
 
+                    let build_info = match crate_data.build_info {
+                        Some(spec) => Some(BuildInfo {
+                            manifest_file: absolutize_on_base(spec.manifest_file),
+                            target_label: spec.target_label,
+                            target_kind: spec.target_kind.into(),
+                            runnables: spec.runnables.into(),
+                        }),
+                        None => None,
+                    };
+
                     Crate {
                         display_name: crate_data
                             .display_name
@@ -149,6 +175,7 @@ impl ProjectJson {
                         exclude,
                         is_proc_macro: crate_data.is_proc_macro,
                         repository: crate_data.repository,
+                        build_info,
                     }
                 })
                 .collect(),
@@ -171,6 +198,14 @@ impl ProjectJson {
     /// Returns the path to the project's root folder.
     pub fn path(&self) -> &AbsPath {
         &self.project_root
+    }
+
+    pub fn crate_by_root(&self, root: &AbsPath) -> Option<Crate> {
+        self.crates
+            .iter()
+            .filter(|krate| krate.is_workspace_member)
+            .find(|krate| &krate.root_module == root)
+            .cloned()
     }
 }
 
@@ -201,6 +236,8 @@ struct CrateData {
     is_proc_macro: bool,
     #[serde(default)]
     repository: Option<String>,
+    #[serde(default)]
+    build_info: Option<BuildInfoData>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -214,6 +251,46 @@ enum EditionData {
     Edition2021,
     #[serde(rename = "2024")]
     Edition2024,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct BuildInfoData {
+    manifest_file: PathBuf,
+    target_label: String,
+    target_kind: TargetKindData,
+    runnables: RunnablesData,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct RunnablesData {
+    check: Vec<String>,
+    run: Vec<String>,
+    test: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TargetKindData {
+    Bin,
+    /// Any kind of Cargo lib crate-type (dylib, rlib, proc-macro, ...).
+    Lib,
+    Test,
+}
+
+impl From<TargetKindData> for TargetKind {
+    fn from(value: TargetKindData) -> Self {
+        match value {
+            TargetKindData::Bin => TargetKind::Bin,
+            TargetKindData::Lib => TargetKind::Lib { is_proc_macro: false },
+            TargetKindData::Test => TargetKind::Test,
+        }
+    }
+}
+
+impl From<RunnablesData> for Runnables {
+    fn from(value: RunnablesData) -> Self {
+        Runnables { check: value.check, run: value.run, test: value.test }
+    }
 }
 
 impl From<EditionData> for Edition {

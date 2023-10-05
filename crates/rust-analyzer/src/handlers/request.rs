@@ -41,6 +41,7 @@ use crate::{
     hack_recover_crate_name,
     line_index::LineEndings,
     lsp::{
+        ext::{CargoRunnable, RunnableData},
         from_proto, to_proto,
         utils::{all_edits_are_disjoint, invalid_params_error},
         LspError,
@@ -824,12 +825,15 @@ pub(crate) fn handle_runnables(
         if should_skip_target(&runnable, target_spec.as_ref()) {
             continue;
         }
-        let mut runnable = to_proto::runnable(&snap, runnable)?;
-        if expect_test {
-            runnable.label = format!("{} + expect", runnable.label);
-            runnable.args.expect_test = Some(true);
+        if let Some(mut runnable) = to_proto::runnable(&snap, runnable)? {
+            if expect_test {
+                if let lsp_ext::RunnableData::Cargo(r) = &mut runnable.args {
+                    runnable.label = format!("{} + expect", runnable.label);
+                    r.expect_test = Some(true);
+                }
+            }
+            res.push(runnable);
         }
-        res.push(runnable);
     }
 
     // Add `cargo check` and `cargo test` for all targets of the whole package
@@ -851,31 +855,31 @@ pub(crate) fn handle_runnables(
                     ),
                     location: None,
                     kind: lsp_ext::RunnableKind::Cargo,
-                    args: lsp_ext::CargoRunnable {
+                    args: RunnableData::Cargo(CargoRunnable {
                         workspace_root: Some(spec.workspace_root.clone().into()),
                         override_cargo: config.override_cargo.clone(),
                         cargo_args,
                         cargo_extra_args: config.cargo_extra_args.clone(),
                         executable_args: Vec::new(),
                         expect_test: None,
-                    },
+                    }),
                 })
             }
         }
-        None => {
+        Some(TargetSpec::ProjectJson(_)) | None => {
             if !snap.config.linked_or_discovered_projects().is_empty() {
                 res.push(lsp_ext::Runnable {
                     label: "cargo check --workspace".to_owned(),
                     location: None,
                     kind: lsp_ext::RunnableKind::Cargo,
-                    args: lsp_ext::CargoRunnable {
+                    args: RunnableData::Cargo(lsp_ext::CargoRunnable {
                         workspace_root: None,
                         override_cargo: config.override_cargo,
                         cargo_args: vec!["check".to_owned(), "--workspace".to_owned()],
                         cargo_extra_args: config.cargo_extra_args,
                         executable_args: Vec::new(),
                         expect_test: None,
-                    },
+                    }),
                 });
             }
         }
@@ -901,7 +905,7 @@ pub(crate) fn handle_related_tests(
     let tests = snap.analysis.related_tests(position, None)?;
     let mut res = Vec::new();
     for it in tests {
-        if let Ok(runnable) = to_proto::runnable(&snap, it) {
+        if let Ok(Some(runnable)) = to_proto::runnable(&snap, it) {
             res.push(lsp_ext::TestInfo { runnable })
         }
     }
@@ -1766,7 +1770,7 @@ pub(crate) fn handle_open_cargo_toml(
 
     let cargo_spec = match TargetSpec::for_file(&snap, file_id)? {
         Some(TargetSpec::Cargo(it)) => it,
-        None => return Ok(None),
+        Some(TargetSpec::ProjectJson(_)) | None => return Ok(None),
     };
 
     let cargo_toml_url = to_proto::url_from_abs_path(&cargo_spec.cargo_toml);
@@ -1905,7 +1909,7 @@ fn runnable_action_links(
     }
 
     let title = runnable.title();
-    let r = to_proto::runnable(snap, runnable).ok()?;
+    let r = to_proto::runnable(snap, runnable).ok()??;
 
     let mut group = lsp_ext::CommandLinkGroup::default();
 
