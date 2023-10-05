@@ -8,11 +8,12 @@ use project_model::{CargoFeatures, ManifestPath, TargetKind};
 use rustc_hash::FxHashSet;
 use vfs::{AbsPath, AbsPathBuf};
 
-use crate::global_state::GlobalStateSnapshot;
+use crate::global_state::{GlobalStateSnapshot, TargetForCrateRoot};
 
 #[derive(Clone)]
 pub(crate) enum TargetSpec {
     Cargo(CargoTargetSpec),
+    ProjectJson(ProjectJsonSpec),
 }
 
 impl TargetSpec {
@@ -25,8 +26,8 @@ impl TargetSpec {
             _ => return Ok(None),
         };
 
-        match global_state_snapshot.cargo_target_for_crate_root(crate_id) {
-            Some((cargo_ws, target)) => {
+        match global_state_snapshot.target_for_crate_root(crate_id) {
+            Some(TargetForCrateRoot::Cargo(cargo_ws, target)) => {
                 let target_data = &cargo_ws[target];
                 let package_data = &cargo_ws[target_data.package];
                 let res = CargoTargetSpec {
@@ -41,6 +42,23 @@ impl TargetSpec {
                 };
                 Ok(Some(TargetSpec::Cargo(res)))
             }
+            Some(TargetForCrateRoot::JsonProject(krate)) => match krate.build_info {
+                Some(target) => {
+                    let manifest = ManifestPath::try_from(target.manifest_file).unwrap();
+                    let res = ProjectJsonSpec {
+                        workspace_root: manifest.parent().to_path_buf(),
+                        project_manifest: manifest,
+                        target_kind: target.target_kind,
+                        target_label: target.target_label,
+                        runnables: target.runnables,
+                    };
+                    Ok(Some(TargetSpec::ProjectJson(res)))
+                }
+                None => {
+                    tracing::debug!(?krate, "no target spec");
+                    Ok(None)
+                }
+            },
             None => {
                 tracing::debug!(?crate_id, "no target found");
                 Ok(None)
@@ -51,18 +69,21 @@ impl TargetSpec {
     pub(crate) fn project_manifest(&self) -> &AbsPath {
         match self {
             TargetSpec::Cargo(cargo) => &cargo.cargo_toml,
+            TargetSpec::ProjectJson(project_json) => &project_json.project_manifest,
         }
     }
 
     pub(crate) fn workspace_root(&self) -> &AbsPath {
         match self {
             TargetSpec::Cargo(cargo) => &cargo.workspace_root,
+            TargetSpec::ProjectJson(project_json) => &project_json.workspace_root,
         }
     }
 
     pub(crate) fn target_kind(&self) -> TargetKind {
         match self {
             TargetSpec::Cargo(cargo) => cargo.target_kind,
+            TargetSpec::ProjectJson(project_json) => project_json.target_kind,
         }
     }
 }
@@ -81,6 +102,55 @@ pub(crate) struct CargoTargetSpec {
     pub(crate) crate_id: CrateId,
     pub(crate) required_features: Vec<String>,
     pub(crate) features: FxHashSet<String>,
+}
+
+#[derive(Clone)]
+pub(crate) struct ProjectJsonSpec {
+    pub(crate) workspace_root: AbsPathBuf,
+    /// [`project_manifest`] corresponds to the file defining a crate. With Cargo,
+    /// this will be a Cargo.toml, but with a non-Cargo build system, this might be
+    /// a `TARGETS` or `BUCK` file. Multiple, distinct crates can share a
+    /// single `project_manifest`.
+    pub(crate) project_manifest: ManifestPath,
+    pub(crate) target_label: String,
+    pub(crate) target_kind: TargetKind,
+    pub(crate) runnables: project_model::project_json::Runnables,
+}
+
+impl ProjectJsonSpec {
+    pub(crate) fn runnable_args(spec: ProjectJsonSpec, kind: &RunnableKind) -> Vec<String> {
+        let mut args = Vec::new();
+
+        match kind {
+            RunnableKind::Test { test_id, attr: _ } | RunnableKind::DocTest { test_id } => {
+                let mut test_runnable = spec.runnables.test;
+                for arg in &mut test_runnable.iter_mut() {
+                    if arg == "{test_id}" {
+                        *arg = test_id.to_string()
+                    }
+                }
+
+                args.append(&mut test_runnable);
+            }
+            RunnableKind::TestMod { path } => {
+                let mut test_runnable = spec.runnables.test;
+                for arg in &mut test_runnable.iter_mut() {
+                    if arg == "{test_id}" {
+                        *arg = path.to_string()
+                    }
+                }
+
+                args.append(&mut test_runnable);
+            }
+            RunnableKind::Bin => {
+                let mut run = spec.runnables.run;
+                args.append(&mut run);
+            }
+            _ => (),
+        };
+
+        args
+    }
 }
 
 impl CargoTargetSpec {

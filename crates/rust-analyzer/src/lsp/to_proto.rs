@@ -24,12 +24,13 @@ use crate::{
     global_state::GlobalStateSnapshot,
     line_index::{LineEndings, LineIndex, PositionEncoding},
     lsp::{
+        ext::ProjectJsonRunnable,
         semantic_tokens::{self, standard_fallback_type},
         utils::invalid_params_error,
         LspError,
     },
     lsp_ext::{self, SnippetTextEdit},
-    target_spec::{CargoTargetSpec, TargetSpec},
+    target_spec::{CargoTargetSpec, ProjectJsonSpec, TargetSpec},
 };
 
 pub(crate) fn position(line_index: &LineIndex, offset: TextSize) -> lsp_types::Position {
@@ -1361,14 +1362,30 @@ pub(crate) fn runnable(
                 label,
                 location: Some(location),
                 kind: lsp_ext::RunnableKind::Cargo,
-                args: lsp_ext::CargoRunnable {
+                args: lsp_ext::RunnableData::Cargo(lsp_ext::CargoRunnable {
                     workspace_root: Some(workspace_root.into()),
                     override_cargo: config.override_cargo,
                     cargo_args,
                     cargo_extra_args: config.cargo_extra_args,
                     executable_args,
                     expect_test: None,
-                },
+                }),
+            })
+        }
+        Some(TargetSpec::ProjectJson(spec)) => {
+            let label = runnable.label(Some(spec.target_label.clone()));
+            let location = location_link(snap, None, runnable.nav)?;
+            let args = ProjectJsonSpec::runnable_args(spec.clone(), &runnable.kind);
+
+            Ok(lsp_ext::Runnable {
+                label,
+                location: Some(location),
+                kind: lsp_ext::RunnableKind::ProjectJson,
+                args: lsp_ext::RunnableData::ProjectJson(ProjectJsonRunnable {
+                    build_command: config.override_cargo.unwrap(),
+                    args,
+                    workspace_root: spec.workspace_root.clone().into(),
+                }),
             })
         }
         None => {
@@ -1381,14 +1398,14 @@ pub(crate) fn runnable(
                 label,
                 location: Some(location),
                 kind: lsp_ext::RunnableKind::Cargo,
-                args: lsp_ext::CargoRunnable {
+                args: lsp_ext::RunnableData::Cargo(lsp_ext::CargoRunnable {
                     workspace_root: None,
                     override_cargo: config.override_cargo,
                     cargo_args,
                     cargo_extra_args: config.cargo_extra_args,
                     executable_args,
                     expect_test: None,
-                },
+                }),
             })
         }
     }
@@ -1418,7 +1435,7 @@ pub(crate) fn code_lens(
             let lens_config = snap.config.lens();
             if lens_config.run
                 && client_commands_config.run_single
-                && r.args.workspace_root.is_some()
+                && r.args.workspace_root().is_some()
             {
                 let command = command::run_single(&r, &title);
                 acc.push(lsp_types::CodeLens {
