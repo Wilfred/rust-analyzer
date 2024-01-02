@@ -7,7 +7,7 @@ use std::{
 use ide::Cancelled;
 use lsp_server::{ExtractError, Response, ResponseError};
 use serde::{de::DeserializeOwned, Serialize};
-use stdx::thread::ThreadIntent;
+use stdx::{panic_context, thread::ThreadIntent};
 
 use crate::{
     global_state::{GlobalState, GlobalStateSnapshot},
@@ -327,8 +327,16 @@ where
             let mut message = "request handler panicked".to_owned();
             if let Some(panic_message) = panic_message {
                 message.push_str(": ");
-                message.push_str(panic_message)
+                message.push_str(panic_message);
+                message.push_str("\n");
             };
+
+            panic_context::with_backtrace(|backtrace| {
+                if let Some(backtrace) = backtrace {
+                    message.push_str("backtrace:\n");
+                    message.push_str(&backtrace.to_string())
+                }
+            });
 
             Ok(lsp_server::Response::new_err(
                 id,
