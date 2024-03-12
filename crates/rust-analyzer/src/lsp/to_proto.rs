@@ -20,7 +20,6 @@ use serde_json::to_value;
 use vfs::AbsPath;
 
 use crate::{
-    cargo_target_spec::CargoTargetSpec,
     config::{CallInfoConfig, Config},
     global_state::GlobalStateSnapshot,
     line_index::{LineEndings, LineIndex, PositionEncoding},
@@ -30,6 +29,7 @@ use crate::{
         LspError,
     },
     lsp_ext::{self, SnippetTextEdit},
+    target_spec::{CargoTargetSpec, TargetSpec},
 };
 
 pub(crate) fn position(line_index: &LineIndex, offset: TextSize) -> lsp_types::Position {
@@ -1344,10 +1344,10 @@ pub(crate) fn runnable(
     runnable: Runnable,
 ) -> Cancellable<lsp_ext::Runnable> {
     let config = snap.config.runnables();
-    let target_spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id)?;
+    let target_spec = TargetSpec::for_file(snap, runnable.nav.file_id)?;
 
     match target_spec {
-        Some(spec) => {
+        Some(TargetSpec::Cargo(spec)) => {
             let workspace_root = spec.workspace_root.clone();
             let target = spec.target.clone();
 

@@ -35,7 +35,6 @@ use triomphe::Arc;
 use vfs::{AbsPath, AbsPathBuf, FileId, VfsPath};
 
 use crate::{
-    cargo_target_spec::CargoTargetSpec,
     config::{Config, RustfmtConfig, WorkspaceSymbolConfig},
     diff::diff,
     global_state::{GlobalState, GlobalStateSnapshot},
@@ -50,6 +49,7 @@ use crate::{
         self, CrateInfoResult, ExternalDocsPair, ExternalDocsResponse, FetchDependencyListParams,
         FetchDependencyListResult, PositionOrRange, ViewCrateGraphParams, WorkspaceSymbolParams,
     },
+    target_spec::TargetSpec,
 };
 
 pub(crate) fn handle_workspace_reload(state: &mut GlobalState, _: ()) -> anyhow::Result<()> {
@@ -771,13 +771,13 @@ pub(crate) fn handle_parent_module(
             Some(&crate_id) => crate_id,
             None => return Ok(None),
         };
-        let cargo_spec = match CargoTargetSpec::for_file(&snap, file_id)? {
+        let target_spec = match TargetSpec::for_file(&snap, file_id)? {
             Some(it) => it,
             None => return Ok(None),
         };
 
         if snap.analysis.crate_root(crate_id)? == file_id {
-            let cargo_toml_url = to_proto::url_from_abs_path(&cargo_spec.cargo_toml);
+            let cargo_toml_url = to_proto::url_from_abs_path(target_spec.project_manifest());
             let res = vec![LocationLink {
                 origin_selection_range: None,
                 target_uri: cargo_toml_url,
@@ -804,7 +804,7 @@ pub(crate) fn handle_runnables(
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
     let line_index = snap.file_line_index(file_id)?;
     let offset = params.position.and_then(|it| from_proto::offset(&line_index, it).ok());
-    let cargo_spec = CargoTargetSpec::for_file(&snap, file_id)?;
+    let target_spec = TargetSpec::for_file(&snap, file_id)?;
 
     let expect_test = match offset {
         Some(offset) => {
@@ -821,7 +821,7 @@ pub(crate) fn handle_runnables(
         if should_skip_for_offset(&runnable, offset) {
             continue;
         }
-        if should_skip_target(&runnable, cargo_spec.as_ref()) {
+        if should_skip_target(&runnable, target_spec.as_ref()) {
             continue;
         }
         let mut runnable = to_proto::runnable(&snap, runnable)?;
@@ -834,8 +834,8 @@ pub(crate) fn handle_runnables(
 
     // Add `cargo check` and `cargo test` for all targets of the whole package
     let config = snap.config.runnables();
-    match cargo_spec {
-        Some(spec) => {
+    match target_spec {
+        Some(TargetSpec::Cargo(spec)) => {
             let all_targets = !snap.analysis.is_crate_no_std(spec.crate_id)?;
             for cmd in ["check", "test"] {
                 let mut cargo_args =
@@ -1351,14 +1351,14 @@ pub(crate) fn handle_code_lens(
     }
 
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
-    let cargo_target_spec = CargoTargetSpec::for_file(&snap, file_id)?;
+    let target_spec = TargetSpec::for_file(&snap, file_id)?;
 
     let annotations = snap.analysis.annotations(
         &AnnotationConfig {
-            binary_target: cargo_target_spec
+            binary_target: target_spec
                 .map(|spec| {
                     matches!(
-                        spec.target_kind,
+                        spec.target_kind(),
                         TargetKind::Bin | TargetKind::Example | TargetKind::Test
                     )
                 })
@@ -1764,8 +1764,8 @@ pub(crate) fn handle_open_cargo_toml(
     let _p = tracing::span!(tracing::Level::INFO, "handle_open_cargo_toml").entered();
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
 
-    let cargo_spec = match CargoTargetSpec::for_file(&snap, file_id)? {
-        Some(it) => it,
+    let cargo_spec = match TargetSpec::for_file(&snap, file_id)? {
+        Some(TargetSpec::Cargo(it)) => it,
         None => return Ok(None),
     };
 
@@ -1894,8 +1894,8 @@ fn runnable_action_links(
         return None;
     }
 
-    let cargo_spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id).ok()?;
-    if should_skip_target(&runnable, cargo_spec.as_ref()) {
+    let target_spec = TargetSpec::for_file(snap, runnable.nav.file_id).ok()?;
+    if should_skip_target(&runnable, target_spec.as_ref()) {
         return None;
     }
 
@@ -1960,13 +1960,13 @@ fn prepare_hover_actions(
         .collect()
 }
 
-fn should_skip_target(runnable: &Runnable, cargo_spec: Option<&CargoTargetSpec>) -> bool {
+fn should_skip_target(runnable: &Runnable, cargo_spec: Option<&TargetSpec>) -> bool {
     match runnable.kind {
         RunnableKind::Bin => {
             // Do not suggest binary run on other target than binary
             match &cargo_spec {
                 Some(spec) => !matches!(
-                    spec.target_kind,
+                    spec.target_kind(),
                     TargetKind::Bin | TargetKind::Example | TargetKind::Test
                 ),
                 None => true,
@@ -2043,8 +2043,8 @@ fn run_rustfmt(
         }
         RustfmtConfig::CustomCommand { command, args } => {
             let cmd = PathBuf::from(&command);
-            let workspace = CargoTargetSpec::for_file(snap, file_id)?;
-            let mut cmd = match workspace {
+            let target_spec = TargetSpec::for_file(snap, file_id)?;
+            let mut cmd = match target_spec {
                 Some(spec) => {
                     // approach: if the command name contains a path separator, join it with the workspace root.
                     // however, if the path is absolute, joining will result in the absolute path being preserved.
@@ -2052,7 +2052,7 @@ fn run_rustfmt(
                     let cmd_path = if command.contains(std::path::MAIN_SEPARATOR)
                         || (cfg!(windows) && command.contains('/'))
                     {
-                        spec.workspace_root.join(cmd).into()
+                        spec.workspace_root().join(cmd).into()
                     } else {
                         cmd
                     };
