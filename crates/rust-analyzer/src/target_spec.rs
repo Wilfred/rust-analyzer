@@ -112,7 +112,7 @@ pub(crate) struct ProjectJsonSpec {
     pub(crate) project_manifest: ManifestPath,
     pub(crate) target_label: String,
     pub(crate) target_kind: TargetKind,
-    pub(crate) runnables: project_model::project_json::Runnables,
+    pub(crate) runnables: Vec<project_model::project_json::RunnableConfig>,
 }
 
 impl ProjectJsonSpec {

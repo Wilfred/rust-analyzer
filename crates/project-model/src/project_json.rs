@@ -95,14 +95,7 @@ pub struct BuildInfo {
     pub manifest_file: AbsPathBuf,
     pub target_label: String,
     pub target_kind: TargetKind,
-    pub runnables: Runnables,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Runnables {
-    pub check: Vec<String>,
-    pub run: Vec<String>,
-    pub test: Vec<String>,
+    pub runnables: Vec<RunnableConfig>,
 }
 
 impl ProjectJson {
@@ -142,7 +135,7 @@ impl ProjectJson {
                             manifest_file: absolutize_on_base(spec.manifest_file),
                             target_label: spec.target_label,
                             target_kind: spec.target_kind.into(),
-                            runnables: spec.runnables.into(),
+                            runnables: spec.runnables,
                         }),
                         None => None,
                     };
@@ -258,14 +251,24 @@ pub struct BuildInfoData {
     manifest_file: PathBuf,
     target_label: String,
     target_kind: TargetKindData,
-    runnables: RunnablesData,
+    runnables: Vec<RunnableConfig>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
-pub struct RunnablesData {
-    check: Vec<String>,
-    run: Vec<String>,
-    test: Vec<String>,
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RunnableKind {
+    Build,
+    Check,
+    Test,
+    Run,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct RunnableConfig {
+    kind: RunnableKind,
+    label: String,
+    argv: Vec<String>,
+    working_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
@@ -284,12 +287,6 @@ impl From<TargetKindData> for TargetKind {
             TargetKindData::Lib => TargetKind::Lib { is_proc_macro: false },
             TargetKindData::Test => TargetKind::Test,
         }
-    }
-}
-
-impl From<RunnablesData> for Runnables {
-    fn from(value: RunnablesData) -> Self {
-        Runnables { check: value.check, run: value.run, test: value.test }
     }
 }
 
