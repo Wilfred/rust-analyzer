@@ -59,7 +59,7 @@ mod tests;
 
 use std::ops::Deref;
 
-use base_db::{CrateId, FileId};
+use base_db::{CrateGraph, CrateId, FileId};
 use hir_expand::{
     name::Name, proc_macro::ProcMacroKind, ErasedAstId, HirFileId, InFile, MacroCallId, MacroDefId,
 };
@@ -325,10 +325,35 @@ pub struct ModuleData {
     pub scope: ItemScope,
 }
 
+fn build_def_map(crate_graph: &CrateGraph) -> FxHashMap<CrateId, DefMap> {
+    for crate_id in crate_graph.iter() {
+        let krate = &crate_graph[crate_id];
+        let name = krate.display_name.as_deref().unwrap_or_default();
+
+        let module_data = ModuleData::new(
+            ModuleOrigin::CrateRoot { definition: krate.root_file_id },
+            Visibility::Public,
+        );
+
+        let def_map = DefMap::empty(
+            crate_id,
+            Arc::new(DefMapCrateData::new(krate.edition)),
+            module_data,
+            None,
+        );
+
+        let def_map =
+            collector::collect_defs_p(crate_graph, def_map, TreeId::new(krate.root_file_id.into(), None));
+    }
+
+    FxHashMap::default()
+}
+
 impl DefMap {
     /// The module id of a crate or block root.
     pub const ROOT: LocalModuleId = LocalModuleId::from_raw(la_arena::RawIdx::from_u32(0));
 
+    // slow
     pub(crate) fn crate_def_map_query(db: &dyn DefDatabase, crate_id: CrateId) -> Arc<DefMap> {
         let crate_graph = db.crate_graph();
         let krate = &crate_graph[crate_id];

@@ -120,6 +120,18 @@ impl DefMap {
         Some(vis)
     }
 
+    pub(crate) fn resolve_visibility_p(
+        &self,
+        // module to import to
+        _original_module: LocalModuleId,
+        // pub(path)
+        //     ^^^^ this
+        _visibility: &RawVisibility,
+        _within_impl: bool,
+    ) -> Option<Visibility> {
+        todo!()
+    }
+
     // Returns Yes if we are sure that additions to `ItemMap` wouldn't change
     // the result.
     pub(super) fn resolve_path_fp_with_macro(

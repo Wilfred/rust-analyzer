@@ -42,6 +42,10 @@ impl Attrs {
         (**self).iter().find(|attr| attr.id == id)
     }
 
+    pub(crate) fn filter_p(krate: CrateId, raw_attrs: RawAttrs) -> Attrs {
+        Attrs(raw_attrs.filter_p(krate))
+    }
+
     pub(crate) fn filter(db: &dyn DefDatabase, krate: CrateId, raw_attrs: RawAttrs) -> Attrs {
         Attrs(raw_attrs.filter(db.upcast(), krate))
     }

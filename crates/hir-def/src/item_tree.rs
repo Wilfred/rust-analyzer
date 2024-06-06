@@ -160,8 +160,19 @@ impl ItemTree {
         )
     }
 
+    pub fn top_level_attrs_p(&self, krate: CrateId) -> Attrs {
+        Attrs::filter_p(
+            krate,
+            self.attrs.get(&AttrOwner::TopLevel).unwrap_or(&RawAttrs::EMPTY).clone(),
+        )
+    }
+
     pub(crate) fn raw_attrs(&self, of: AttrOwner) -> &RawAttrs {
         self.attrs.get(&of).unwrap_or(&RawAttrs::EMPTY)
+    }
+
+    pub(crate) fn attrs_p(&self, krate: CrateId, of: AttrOwner) -> Attrs {
+        Attrs::filter_p(krate, self.raw_attrs(of).clone())
     }
 
     pub(crate) fn attrs(&self, db: &dyn DefDatabase, krate: CrateId, of: AttrOwner) -> Attrs {

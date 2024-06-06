@@ -129,6 +129,8 @@ impl SourceToDefCtx<'_, '_> {
         let _p = tracing::info_span!("SourceToDefCtx::file_to_def").entered();
         self.cache.file_to_def_cache.entry(file).or_insert_with(|| {
             let mut mods = SmallVec::new();
+
+            // iterating over crates here, needs to be parallel.
             for &crate_id in self.db.relevant_crates(file).iter() {
                 // Note: `mod` declarations in block modules cannot be supported here
                 let crate_def_map = self.db.crate_def_map(crate_id);

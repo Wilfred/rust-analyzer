@@ -110,6 +110,10 @@ impl RawAttrs {
         }
     }
 
+    pub fn filter_p(self, _krate: CrateId) -> RawAttrs {
+        todo!()
+    }
+
     /// Processes `cfg_attr`s, returning the resulting semantic `Attrs`.
     // FIXME: This should return a different type, signaling it was filtered?
     pub fn filter(self, db: &dyn ExpandDatabase, krate: CrateId) -> RawAttrs {
@@ -366,6 +370,10 @@ impl Attr {
             });
 
         Some(paths)
+    }
+
+    pub fn parse_path_comma_token_tree_p(&self) -> Option<Vec<(ModPath, Span)>> {
+        todo!()
     }
 
     pub fn cfg(&self) -> Option<CfgExpr> {
