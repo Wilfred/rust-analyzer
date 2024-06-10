@@ -54,9 +54,9 @@ use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
 use rustc_hash::FxHashMap;
 use serde::{de, Deserialize, Serialize};
 use span::Edition;
+use std::path::PathBuf;
 
-use crate::cfg::CfgFlag;
-use crate::ManifestPath;
+use crate::{cfg::CfgFlag, ManifestPath, TargetKind};
 
 /// Roots and crates that compose this Rust project.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -68,6 +68,9 @@ pub struct ProjectJson {
     project_root: AbsPathBuf,
     manifest: Option<ManifestPath>,
     crates: Vec<Crate>,
+    /// Configuration for commands, such as CLI invocations for
+    /// a check build or a test run.
+    runnables: Vec<Runnable>,
 }
 
 /// A crate points to the root module of a crate and lists the dependencies of the crate. This is
@@ -88,6 +91,35 @@ pub struct Crate {
     pub(crate) exclude: Vec<AbsPathBuf>,
     pub(crate) is_proc_macro: bool,
     pub(crate) repository: Option<String>,
+    pub build: Option<Build>,
+}
+
+/// Additional metadata about a crate, used to configure runnables.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Build {
+    /// The name associated with this crate, according to the custom
+    /// build system being used.
+    pub label: String,
+    /// Path corresponding to the build system-specific file defining the crate.
+    pub build_file: PathBuf,
+    /// What kind of target is this crate? For example, we don't want
+    /// to offer a 'run' button for library crates.
+    pub target_kind: TargetKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Runnable {
+    pub program: String,
+    pub args: Vec<String>,
+    pub cwd: PathBuf,
+    pub kind: RunnableKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RunnableKind {
+    Check,
+    Run,
+    TestOne,
 }
 
 impl ProjectJson {
@@ -109,6 +141,7 @@ impl ProjectJson {
             sysroot_src: data.sysroot_src.map(absolutize_on_base),
             project_root: base.to_path_buf(),
             manifest,
+            runnables: data.runnables.into_iter().map(Runnable::from).collect(),
             crates: data
                 .crates
                 .into_iter()
@@ -125,6 +158,15 @@ impl ProjectJson {
                             (absolutize(src.include_dirs), absolutize(src.exclude_dirs))
                         }
                         None => (vec![root_module.parent().unwrap().to_path_buf()], Vec::new()),
+                    };
+
+                    let build = match crate_data.build {
+                        Some(build) => Some(Build {
+                            label: build.label,
+                            build_file: build.build_file,
+                            target_kind: build.target_kind.into(),
+                        }),
+                        None => None,
                     };
 
                     Crate {
@@ -146,6 +188,7 @@ impl ProjectJson {
                         exclude,
                         is_proc_macro: crate_data.is_proc_macro,
                         repository: crate_data.repository,
+                        build,
                     }
                 })
                 .collect(),
@@ -167,7 +210,15 @@ impl ProjectJson {
         &self.project_root
     }
 
-    /// Returns the path to the project's manifest file, if it exists.
+    pub fn crate_by_root(&self, root: &AbsPath) -> Option<Crate> {
+        self.crates
+            .iter()
+            .filter(|krate| krate.is_workspace_member)
+            .find(|krate| krate.root_module == root)
+            .cloned()
+    }
+
+    /// Returns the path to the project's manifest, if it exists.
     pub fn manifest(&self) -> Option<&ManifestPath> {
         self.manifest.as_ref()
     }
@@ -176,6 +227,10 @@ impl ProjectJson {
     pub fn manifest_or_root(&self) -> &AbsPath {
         self.manifest.as_ref().map_or(&self.project_root, |manifest| manifest.as_ref())
     }
+
+    pub fn runnables(&self) -> &[Runnable] {
+        &self.runnables
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -183,6 +238,8 @@ pub struct ProjectJsonData {
     sysroot: Option<Utf8PathBuf>,
     sysroot_src: Option<Utf8PathBuf>,
     crates: Vec<CrateData>,
+    #[serde(default)]
+    runnables: Vec<RunnableData>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -205,6 +262,8 @@ struct CrateData {
     is_proc_macro: bool,
     #[serde(default)]
     repository: Option<String>,
+    #[serde(default)]
+    build: Option<BuildData>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -220,6 +279,48 @@ enum EditionData {
     Edition2024,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BuildData {
+    label: String,
+    build_file: PathBuf,
+    target_kind: TargetKindData,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunnableData {
+    pub program: String,
+    pub args: Vec<String>,
+    pub cwd: PathBuf,
+    pub kind: RunnableKindData,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RunnableKindData {
+    Check,
+    Run,
+    TestOne,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TargetKindData {
+    Bin,
+    /// Any kind of Cargo lib crate-type (dylib, rlib, proc-macro, ...).
+    Lib,
+    Test,
+}
+
+impl From<TargetKindData> for TargetKind {
+    fn from(data: TargetKindData) -> Self {
+        match data {
+            TargetKindData::Bin => TargetKind::Bin,
+            TargetKindData::Lib => TargetKind::Lib { is_proc_macro: false },
+            TargetKindData::Test => TargetKind::Test,
+        }
+    }
+}
+
 impl From<EditionData> for Edition {
     fn from(data: EditionData) -> Self {
         match data {
@@ -227,6 +328,22 @@ impl From<EditionData> for Edition {
             EditionData::Edition2018 => Edition::Edition2018,
             EditionData::Edition2021 => Edition::Edition2021,
             EditionData::Edition2024 => Edition::Edition2024,
+        }
+    }
+}
+
+impl From<RunnableData> for Runnable {
+    fn from(data: RunnableData) -> Self {
+        Runnable { program: data.program, args: data.args, cwd: data.cwd, kind: data.kind.into() }
+    }
+}
+
+impl From<RunnableKindData> for RunnableKind {
+    fn from(data: RunnableKindData) -> Self {
+        match data {
+            RunnableKindData::Check => RunnableKind::Check,
+            RunnableKindData::Run => RunnableKind::Run,
+            RunnableKindData::TestOne => RunnableKind::TestOne,
         }
     }
 }
