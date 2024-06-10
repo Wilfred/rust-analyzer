@@ -285,6 +285,10 @@ fn crate_supports_no_std(db: &dyn DefDatabase, crate_id: CrateId) -> bool {
     false
 }
 
+fn macro_def_p(_id: MacroId) -> MacroDefId {
+    todo!()
+}
+
 fn macro_def(db: &dyn DefDatabase, id: MacroId) -> MacroDefId {
     use hir_expand::InFile;
 

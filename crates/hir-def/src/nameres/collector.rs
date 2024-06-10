@@ -422,7 +422,7 @@ impl DefCollectorP<'_> {
     }
 
     fn seed_with_inner(&mut self, tree_id: TreeId) {
-        let item_tree = tree_id.item_tree(self.db);
+        let item_tree = tree_id.item_tree_p();
         let is_cfg_enabled = item_tree
             .top_level_attrs_p(self.def_map.krate)
             .cfg()
@@ -546,7 +546,7 @@ impl DefCollectorP<'_> {
 
         match unresolved_attr {
             Some((pos, &MacroDirective { module_id, depth, container, .. }, mod_item, tree_id)) => {
-                let item_tree = &tree_id.item_tree(self.db);
+                let item_tree = &tree_id.item_tree_p();
                 let mod_dir = self.mod_dirs[&module_id].clone();
                 ModCollectorP {
                     def_collector: self,
@@ -1012,7 +1012,7 @@ impl DefCollectorP<'_> {
                         // We need to check if the def map the enum is from is us, if it is we can't
                         // call the def-map query since we are currently constructing it!
                         let loc = e.lookup(self.db);
-                        let tree = loc.id.item_tree(self.db);
+                        let tree = loc.id.item_tree_p();
                         let current_def_map = self.def_map.krate == loc.container.krate
                             && self.def_map.block_id() == loc.container.block;
                         let def_map;
@@ -1254,7 +1254,7 @@ impl DefCollectorP<'_> {
                         let mod_dir = collector.mod_dirs[&directive.module_id].clone();
                         collector.skip_attrs.insert(InFile::new(file_id, *mod_item), attr.id);
 
-                        let item_tree = tree.item_tree(self.db);
+                        let item_tree = tree.item_tree_p();
                         ModCollectorP {
                             def_collector: collector,
                             macro_depth: directive.depth,
@@ -1305,7 +1305,7 @@ impl DefCollectorP<'_> {
                         // normal (as that would just be an identity expansion with extra output)
                         // Instead we treat derive attributes special and apply them separately.
 
-                        let item_tree = tree.item_tree(self.db);
+                        let item_tree = tree.item_tree_p();
                         let ast_adt_id: FileAstId<ast::Adt> = match *mod_item {
                             ModItem::Struct(strukt) => item_tree[strukt].ast_id().upcast(),
                             ModItem::Union(union) => item_tree[union].ast_id().upcast(),
@@ -1524,7 +1524,7 @@ impl DefCollectorP<'_> {
         for directive in &self.unresolved_imports {
             if let ImportSource::ExternCrate { id } = directive.import.source {
                 let item_tree_id = id.lookup(self.db).id;
-                let item_tree = item_tree_id.item_tree(self.db);
+                let item_tree = item_tree_id.item_tree_p();
                 let extern_crate = &item_tree[item_tree_id.value];
 
                 diagnosed_extern_crates.insert(extern_crate.name.clone());
@@ -4313,9 +4313,7 @@ impl ModCollectorP<'_, '_> {
             if self.def_collector.def_map.is_builtin_or_registered_attr(&attr.path) {
                 continue;
             }
-            tracing::debug!(
-                "non-builtin attribute",
-            );
+            tracing::debug!("non-builtin attribute",);
 
             let ast_id = AstIdWithPath::new(
                 self.file_id(),
@@ -4343,7 +4341,7 @@ impl ModCollectorP<'_, '_> {
     fn collect_macro_rules(&mut self, id: FileItemTreeId<MacroRules>, module: ModuleId) {
         let krate = self.def_collector.def_map.krate;
         let mac = &self.item_tree[id];
-        let attrs = self.item_tree.attrs_p(self.def_collector.db, krate, ModItem::from(id).into());
+        let attrs = self.item_tree.attrs_p(krate, ModItem::from(id).into());
         let ast_id = InFile::new(self.file_id(), mac.ast_id.upcast());
 
         let export_attr = attrs.by_key("macro_export");

@@ -404,6 +404,10 @@ impl TreeId {
         }
     }
 
+    pub(crate) fn item_tree_p(&self) -> Arc<ItemTree> {
+        todo!()
+    }
+
     pub(crate) fn file_id(self) -> HirFileId {
         self.file
     }

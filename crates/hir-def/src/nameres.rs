@@ -326,9 +326,10 @@ pub struct ModuleData {
 }
 
 fn build_def_map(crate_graph: &CrateGraph) -> FxHashMap<CrateId, DefMap> {
+    let mut full_def_map: FxHashMap<CrateId, DefMap> = FxHashMap::default();
+
     for crate_id in crate_graph.iter() {
         let krate = &crate_graph[crate_id];
-        let name = krate.display_name.as_deref().unwrap_or_default();
 
         let module_data = ModuleData::new(
             ModuleOrigin::CrateRoot { definition: krate.root_file_id },
@@ -342,11 +343,15 @@ fn build_def_map(crate_graph: &CrateGraph) -> FxHashMap<CrateId, DefMap> {
             None,
         );
 
-        let def_map =
-            collector::collect_defs_p(crate_graph, def_map, TreeId::new(krate.root_file_id.into(), None));
+        let def_map = collector::collect_defs_p(
+            crate_graph,
+            def_map,
+            TreeId::new(krate.root_file_id.into(), None),
+        );
+        full_def_map.insert(crate_id, def_map);
     }
 
-    FxHashMap::default()
+    full_def_map
 }
 
 impl DefMap {
