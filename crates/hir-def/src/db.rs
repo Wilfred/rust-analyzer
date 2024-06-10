@@ -96,6 +96,7 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
     #[salsa::invoke(DefMap::block_def_map_query)]
     fn block_def_map(&self, block: BlockId) -> Arc<DefMap>;
 
+    // what does this do?
     fn macro_def(&self, m: MacroId) -> MacroDefId;
 
     // region:data
@@ -285,7 +286,7 @@ fn crate_supports_no_std(db: &dyn DefDatabase, crate_id: CrateId) -> bool {
     false
 }
 
-fn macro_def_p(_id: MacroId) -> MacroDefId {
+pub fn macro_def_p(_id: MacroId) -> MacroDefId {
     todo!()
 }
 
