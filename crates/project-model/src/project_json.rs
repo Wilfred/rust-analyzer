@@ -54,7 +54,6 @@ use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
 use rustc_hash::FxHashMap;
 use serde::{de, Deserialize, Serialize};
 use span::Edition;
-use std::path::PathBuf;
 
 use crate::{cfg::CfgFlag, ManifestPath, TargetKind};
 
@@ -101,7 +100,7 @@ pub struct Build {
     /// build system being used.
     pub label: String,
     /// Path corresponding to the build system-specific file defining the crate.
-    pub build_file: PathBuf,
+    pub build_file: Utf8PathBuf,
     /// What kind of target is this crate? For example, we don't want
     /// to offer a 'run' button for library crates.
     pub target_kind: TargetKind,
@@ -111,7 +110,7 @@ pub struct Build {
 pub struct Runnable {
     pub program: String,
     pub args: Vec<String>,
-    pub cwd: PathBuf,
+    pub cwd: Utf8PathBuf,
     pub kind: RunnableKind,
 }
 
@@ -279,10 +278,10 @@ enum EditionData {
     Edition2024,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildData {
     label: String,
-    build_file: PathBuf,
+    build_file: Utf8PathBuf,
     target_kind: TargetKindData,
 }
 
@@ -290,7 +289,7 @@ pub struct BuildData {
 pub struct RunnableData {
     pub program: String,
     pub args: Vec<String>,
-    pub cwd: PathBuf,
+    pub cwd: Utf8PathBuf,
     pub kind: RunnableKindData,
 }
 

@@ -3,7 +3,6 @@
 #![allow(clippy::disallowed_types)]
 
 use std::ops;
-use std::path::PathBuf;
 
 use ide_db::line_index::WideEncoding;
 use lsp_types::request::Request;
@@ -12,6 +11,7 @@ use lsp_types::{
     PartialResultParams, Position, Range, TextDocumentIdentifier, WorkDoneProgressParams,
 };
 use lsp_types::{PositionEncodingKind, Url};
+use paths::Utf8PathBuf;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -463,9 +463,9 @@ pub struct CargoRunnableArgs {
     // command to be executed instead of cargo
     pub override_cargo: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub workspace_root: Option<PathBuf>,
+    pub workspace_root: Option<Utf8PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<PathBuf>,
+    pub cwd: Option<Utf8PathBuf>,
     // command, --package and --lib stuff
     pub cargo_args: Vec<String>,
     // user-specified additional cargo args, like `--release`.
@@ -481,7 +481,7 @@ pub struct CargoRunnableArgs {
 pub struct ShellRunnableArgs {
     pub program: String,
     pub args: Vec<String>,
-    pub cwd: PathBuf,
+    pub cwd: Utf8PathBuf,
 }
 
 pub enum RelatedTests {}
