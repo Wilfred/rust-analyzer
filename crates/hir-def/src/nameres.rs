@@ -222,6 +222,10 @@ impl BlockRelativeModuleId {
         self.into_module(krate).def_map(db)
     }
 
+    fn def_map_p(self, krate: CrateId) -> Arc<DefMap> {
+        todo!()
+    }
+
     fn into_module(self, krate: CrateId) -> ModuleId {
         ModuleId { krate, block: self.block, local_id: self.local_id }
     }
@@ -680,6 +684,26 @@ impl DefMap {
         let mut block = self.block;
         while let Some(block_info) = block {
             let parent = block_info.parent.def_map(db, self.krate);
+            if let Some(it) = f(&parent, block_info.parent.local_id) {
+                return Some(it);
+            }
+            block = parent.block;
+        }
+
+        None
+    }
+
+    pub(crate) fn with_ancestor_maps_p<T>(
+        &self,
+        local_mod: LocalModuleId,
+        f: &mut dyn FnMut(&DefMap, LocalModuleId) -> Option<T>,
+    ) -> Option<T> {
+        if let Some(it) = f(self, local_mod) {
+            return Some(it);
+        }
+        let mut block = self.block;
+        while let Some(block_info) = block {
+            let parent = block_info.parent.def_map_p(self.krate);
             if let Some(it) = f(&parent, block_info.parent.local_id) {
                 return Some(it);
             }

@@ -4518,7 +4518,7 @@ impl ModCollectorP<'_, '_> {
                 path.as_ident().and_then(|name| {
                     let def_map = &self.def_collector.def_map;
                     def_map
-                        .with_ancestor_maps(db, self.module_id, &mut |map, module| {
+                        .with_ancestor_maps_p(self.module_id, &mut |map, module| {
                             map[module].scope.get_legacy_macro(name)?.last().copied()
                         })
                         .or_else(|| def_map[self.module_id].scope.get(name).take_macros())
