@@ -156,3 +156,15 @@ pub(super) fn derive_macro_as_call_id(
     );
     Ok((macro_id, def_id, call_id))
 }
+
+pub(super) fn derive_macro_as_call_id_p(
+    _item_attr: &AstIdWithPath<ast::Adt>,
+    _derive_attr_index: AttrId,
+    _derive_pos: u32,
+    _call_site: SyntaxContextId,
+    _krate: CrateId,
+    _resolver: impl Fn(path::ModPath) -> Option<(MacroId, MacroDefId)>,
+    _derive_macro_id: MacroCallId,
+) -> Result<(MacroId, MacroDefId, MacroCallId), UnresolvedMacro> {
+    todo!()
+}

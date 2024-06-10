@@ -1294,9 +1294,8 @@ impl DefCollectorP<'_> {
                         return recollect_without(self);
                     }
 
-                    let call_id = || {
-                        attr_macro_as_call_id(self.db, file_ast_id, attr, self.def_map.krate, def)
-                    };
+                    let call_id =
+                        || attr_macro_as_call_id_p(file_ast_id, attr, self.def_map.krate, def);
                     if matches!(def,
                         MacroDefId { kind: MacroDefKind::BuiltInAttr(_, exp), .. }
                         if exp.is_derive()
@@ -1327,7 +1326,7 @@ impl DefCollectorP<'_> {
                             Some(derive_macros) => {
                                 let call_id = call_id();
                                 let mut len = 0;
-                                for (idx, (path, call_site)) in derive_macros.enumerate() {
+                                for (idx, (path, call_site)) in derive_macros.into_iter().enumerate() {
                                     let ast_id = AstIdWithPath::new(
                                         file_id,
                                         ast_id.value,
@@ -4140,7 +4139,7 @@ impl ModCollectorP<'_, '_> {
                 else {
                     return;
                 };
-                ModCollector {
+                ModCollectorP {
                     def_collector: &mut *self.def_collector,
                     macro_depth: self.macro_depth,
                     module_id,
@@ -4232,7 +4231,7 @@ impl ModCollectorP<'_, '_> {
     ) -> LocalModuleId {
         let def_map = &mut self.def_collector.def_map;
         let vis = def_map
-            .resolve_visibility(self.def_collector.db, self.module_id, visibility, false)
+            .resolve_visibility_p(self.module_id, visibility, false)
             .unwrap_or(Visibility::Public);
         let origin = match definition {
             None => ModuleOrigin::Inline {
@@ -4428,7 +4427,7 @@ impl ModCollectorP<'_, '_> {
 
         // Case 1: builtin macros
         let mut helpers_opt = None;
-        let attrs = self.item_tree.attrs_p(self.def_collector.db, krate, ModItem::from(id).into());
+        let attrs = self.item_tree.attrs_p(krate, ModItem::from(id).into());
         let expander = if attrs.by_key("rustc_builtin_macro").exists() {
             if let Some(expander) = find_builtin_macro(&mac.name) {
                 match expander {

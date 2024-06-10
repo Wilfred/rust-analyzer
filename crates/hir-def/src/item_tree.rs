@@ -440,6 +440,10 @@ impl<N> ItemTreeId<N> {
         self.tree.item_tree(db)
     }
 
+    pub fn item_tree_p(self) -> Arc<ItemTree> {
+        todo!()
+    }
+
     pub fn resolved<R>(self, db: &dyn DefDatabase, cb: impl FnOnce(&N) -> R) -> R
     where
         ItemTree: Index<FileItemTreeId<N>, Output = N>,
