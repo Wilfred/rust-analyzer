@@ -67,8 +67,9 @@ pub struct ProjectJson {
     project_root: AbsPathBuf,
     manifest: Option<ManifestPath>,
     crates: Vec<Crate>,
-    /// Configuration for commands, such as CLI invocations for
-    /// a check build or a test run.
+    /// Configuration for CLI commands.
+    ///
+    /// Examples include a check build or a test run.
     runnables: Vec<Runnable>,
 }
 
@@ -93,31 +94,81 @@ pub struct Crate {
     pub build: Option<Build>,
 }
 
-/// Additional metadata about a crate, used to configure runnables.
+/// Additional, build-specific data about a crate.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Build {
-    /// The name associated with this crate, according to the custom
-    /// build system being used.
+    /// The name associated with this crate.
+    ///
+    /// This is determined by the build system that produced
+    /// the `rust-project.json` in question. For instance, if buck were used,
+    /// the label might be something like `//ide/rust/rust-analyzer:rust-analyzer`.
+    ///
+    /// Do not attempt to parse the contents of this string; it is a build system-specific
+    /// identifier similar to [`Crate::display_name`].
     pub label: String,
     /// Path corresponding to the build system-specific file defining the crate.
+    ///
+    /// It is roughly analogous to [ManifestPath], but none of the indexing/loading
+    /// operations can be directly applied/used with this file.
     pub build_file: Utf8PathBuf,
-    /// What kind of target is this crate? For example, we don't want
-    /// to offer a 'run' button for library crates.
+    /// The kind of target.
+    ///
+    /// Examples (non-exhaustively) include [`TargetKind::Bin`], [`TargetKind::Lib`],
+    /// and [`TargetKind::Test`]. This information is used to determine what sort
+    /// of runnable codelens to provide, if any.
     pub target_kind: TargetKind,
 }
 
+/// A template-like structure for describing runnables.
+///
+/// These are used for running and debugging binaries and tests without encoding
+/// build system-specific knowledge into rust-analyzer.
+///
+/// # Example
+///
+/// Below is an example of a test runnable. `{label}` and `{test_id}`
+/// are explained in [Runnable::args]'s documentation.
+///
+/// ```json
+/// {
+///     "program": "buck",
+///     "args": [
+///         "test",
+///          "{label}",
+///          "--",
+///          "{test_id}",
+///          "--print-passing-details"
+///     ],
+///     "cwd": "/home/user/repo-root/",
+///     "kind": "testOne"
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Runnable {
+    /// The program invoked by the runnable.
+    ///
+    /// For example, this might be `cargo`, `buck`, or `bazel`.
     pub program: String,
+    /// The arguments passed to [Runnable::program].
+    ///
+    /// The args can contain two template strings: `{label}` and `{test_id}`.
+    /// rust-analyzer will find and replace `{label}` with [Build::label] and
+    /// `{test_id}` with the test name.
     pub args: Vec<String>,
+    /// The current working directory of the runnable.
     pub cwd: Utf8PathBuf,
     pub kind: RunnableKind,
 }
 
+/// The kind of runnable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunnableKind {
     Check,
+
+    /// Can run a binary.
     Run,
+
+    /// Run a single test.
     TestOne,
 }
 
@@ -126,6 +177,7 @@ impl ProjectJson {
     ///
     /// # Arguments
     ///
+    /// * `manifest` - The path to the `rust-project.json`.
     /// * `base` - The path to the workspace root (i.e. the folder containing `rust-project.json`)
     /// * `data` - The parsed contents of `rust-project.json`, or project json that's passed via
     ///            configuration.
