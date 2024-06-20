@@ -2,7 +2,8 @@
 
 use hir::{Crate, Module};
 use hir_ty::db::HirDatabase;
-use ide_db::{base_db::SourceDatabaseExt, LineIndexDatabase};
+use ide_db::base_db::LineIndexDatabase;
+use ide_db::{base_db::SourceDatabaseExt};
 use profile::StopWatch;
 use project_model::{CargoConfig, RustLibSource};
 use syntax::TextRange;

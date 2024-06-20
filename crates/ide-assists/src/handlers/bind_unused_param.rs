@@ -1,8 +1,8 @@
 use crate::assist_context::{AssistContext, Assists};
+use ide_db::base_db::LineIndexDatabase;
 use ide_db::{
     assists::{AssistId, AssistKind},
     defs::Definition,
-    LineIndexDatabase,
 };
 use syntax::{
     ast::{self, edit_in_place::Indent},

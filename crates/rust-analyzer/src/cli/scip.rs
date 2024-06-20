@@ -6,7 +6,7 @@ use ide::{
     AnalysisHost, LineCol, MonikerDescriptorKind, MonikerResult, StaticIndex, StaticIndexedFile,
     SymbolInformationKind, TextRange, TokenId,
 };
-use ide_db::LineIndexDatabase;
+use ide_db::base_db::LineIndexDatabase;
 use load_cargo::{load_workspace_at, LoadCargoConfig, ProcMacroServerChoice};
 use rustc_hash::{FxHashMap, FxHashSet};
 use scip::types as scip_types;

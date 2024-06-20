@@ -7,6 +7,7 @@ mod input;
 
 use std::panic;
 
+use line_index::LineIndex;
 use salsa::Durability;
 use syntax::{ast, Parse, SourceFile, SyntaxError};
 use triomphe::Arc;
@@ -81,7 +82,9 @@ pub trait SourceDatabase: FileLoader + std::fmt::Debug {
 }
 
 fn toolchain_channel(db: &dyn SourceDatabase, krate: CrateId) -> Option<ReleaseChannel> {
-    db.toolchain(krate).as_ref().and_then(|v| ReleaseChannel::from_str(&v.pre))
+    db.toolchain(krate)
+        .as_ref()
+        .and_then(|v| ReleaseChannel::from_str(&v.pre))
 }
 
 fn parse(db: &dyn SourceDatabase, file_id: FileId) -> Parse<ast::SourceFile> {
@@ -97,6 +100,16 @@ fn parse_errors(db: &dyn SourceDatabase, file_id: FileId) -> Option<Arc<[SyntaxE
         [] => None,
         [..] => Some(errors.into()),
     }
+}
+
+#[salsa::query_group(LineIndexDatabaseStorage)]
+pub trait LineIndexDatabase: SourceDatabase {
+    fn line_index(&self, file_id: FileId) -> Arc<LineIndex>;
+}
+
+fn line_index(db: &dyn LineIndexDatabase, file_id: FileId) -> Arc<LineIndex> {
+    let text = db.file_text(file_id);
+    Arc::new(LineIndex::new(&text))
 }
 
 /// We don't want to give HIR knowledge of source roots, hence we extract these

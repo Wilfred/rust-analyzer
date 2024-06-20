@@ -56,7 +56,7 @@ use base_db::{
 use hir::db::{DefDatabase, ExpandDatabase, HirDatabase};
 use triomphe::Arc;
 
-use crate::{line_index::LineIndex, symbol_index::SymbolsDatabase};
+use crate::{ symbol_index::SymbolsDatabase};
 pub use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 
 pub use ::line_index;
@@ -75,7 +75,7 @@ pub type FxIndexMap<K, V> =
     hir::db::DefDatabaseStorage,
     hir::db::HirDatabaseStorage,
     hir::db::InternDatabaseStorage,
-    LineIndexDatabaseStorage,
+    base_db::LineIndexDatabaseStorage,
     symbol_index::SymbolsDatabaseStorage
 )]
 pub struct RootDatabase {
@@ -297,7 +297,7 @@ impl RootDatabase {
             // symbol_index::LibraryRootsQuery
 
             // LineIndexDatabase
-            crate::LineIndexQuery
+            base_db::LineIndexQuery
 
             // InternDatabase
             // hir_db::InternFunctionQuery
@@ -323,16 +323,6 @@ impl salsa::ParallelDatabase for RootDatabase {
     fn snapshot(&self) -> salsa::Snapshot<RootDatabase> {
         salsa::Snapshot::new(RootDatabase { storage: ManuallyDrop::new(self.storage.snapshot()) })
     }
-}
-
-#[salsa::query_group(LineIndexDatabaseStorage)]
-pub trait LineIndexDatabase: base_db::SourceDatabase {
-    fn line_index(&self, file_id: FileId) -> Arc<LineIndex>;
-}
-
-fn line_index(db: &dyn LineIndexDatabase, file_id: FileId) -> Arc<LineIndex> {
-    let text = db.file_text(file_id);
-    Arc::new(LineIndex::new(&text))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

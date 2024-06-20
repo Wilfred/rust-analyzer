@@ -22,10 +22,11 @@ use ide::{
 };
 use ide_db::{
     base_db::{
+        LineIndexDatabase, 
         salsa::{self, debug::DebugQueryTable, ParallelDatabase},
         SourceDatabase, SourceDatabaseExt,
     },
-    LineIndexDatabase, SnippetCap,
+    SnippetCap,
 };
 use itertools::Itertools;
 use load_cargo::{load_workspace, LoadCargoConfig, ProcMacroServerChoice};

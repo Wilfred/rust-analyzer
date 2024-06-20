@@ -216,7 +216,7 @@ impl RootDatabase {
             hir::db::RealSpanMapQuery
 
             // LineIndexDatabase
-            crate::LineIndexQuery
+            base_db::LineIndexQuery
 
             // SourceDatabase
             base_db::ParseQuery

@@ -7,7 +7,8 @@ use ide::{
     Analysis, AnalysisHost, FileId, FileRange, MonikerKind, PackageInformation, RootDatabase,
     StaticIndex, StaticIndexedFile, TokenId, TokenStaticData,
 };
-use ide_db::{line_index::WideEncoding, LineIndexDatabase};
+use ide_db::base_db::LineIndexDatabase;
+use ide_db::line_index::WideEncoding;
 use load_cargo::{load_workspace, LoadCargoConfig, ProcMacroServerChoice};
 use lsp_types::lsif;
 use project_model::{CargoConfig, ProjectManifest, ProjectWorkspace, RustLibSource};

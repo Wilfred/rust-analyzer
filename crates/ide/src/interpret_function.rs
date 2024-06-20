@@ -1,7 +1,7 @@
 use hir::Semantics;
 use ide_db::{
-    base_db::{FilePosition, SourceDatabaseExt},
-    LineIndexDatabase, RootDatabase,
+    base_db::{FilePosition, LineIndexDatabase, SourceDatabaseExt},
+    RootDatabase,
 };
 use std::{fmt::Write, time::Instant};
 use syntax::{algo::ancestors_at_offset, ast, AstNode, TextRange};

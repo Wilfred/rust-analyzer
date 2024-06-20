@@ -66,9 +66,10 @@ use hir::ChangeWithProcMacros;
 use ide_db::{
     base_db::{
         salsa::{self, ParallelDatabase},
-        CrateOrigin, Env, FileLoader, FileSet, SourceDatabase, SourceDatabaseExt, VfsPath,
+        CrateOrigin, Env, FileLoader, FileSet, LineIndexDatabase, SourceDatabase,
+        SourceDatabaseExt, VfsPath,
     },
-    prime_caches, symbol_index, FxHashMap, FxIndexSet, LineIndexDatabase,
+    prime_caches, symbol_index, FxHashMap, FxIndexSet,
 };
 use syntax::SourceFile;
 use triomphe::Arc;
