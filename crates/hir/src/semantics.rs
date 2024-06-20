@@ -42,64 +42,16 @@ use crate::{
     db::HirDatabase,
     semantics::source_to_def::{ChildContainer, SourceToDefCache, SourceToDefCtx},
     source_analyzer::{resolve_hir_path, SourceAnalyzer},
-    Access, Adjust, Adjustment, Adt, AutoBorrow, BindingMode, BuiltinAttr, Callable, Const,
-    ConstParam, Crate, DeriveHelper, Enum, Field, Function, HasSource, HirFileId, Impl, InFile,
-    Label, LifetimeParam, Local, Macro, Module, ModuleDef, Name, OverloadedDeref, Path, ScopeDef,
-    Static, Struct, ToolModule, Trait, TraitAlias, TupleField, Type, TypeAlias, TypeParam, Union,
-    Variant, VariantDef,
+    Access, Adjust, Adjustment, Adt, AutoBorrow, BindingMode, Callable, Const, Crate, Enum, Field,
+    Function, HasSource, HirFileId, Impl, InFile, Label, LifetimeParam, Local, Macro, Module,
+    ModuleDef, Name, OverloadedDeref, Path, PathResolution, ScopeDef, Static, Struct, Trait,
+    TraitAlias, TupleField, Type, TypeAlias, Union, Variant, VariantDef,
 };
 
 pub enum DescendPreference {
     SameText,
     SameKind,
     None,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum PathResolution {
-    /// An item
-    Def(ModuleDef),
-    /// A local binding (only value namespace)
-    Local(Local),
-    /// A type parameter
-    TypeParam(TypeParam),
-    /// A const parameter
-    ConstParam(ConstParam),
-    SelfType(Impl),
-    BuiltinAttr(BuiltinAttr),
-    ToolModule(ToolModule),
-    DeriveHelper(DeriveHelper),
-}
-
-impl PathResolution {
-    pub(crate) fn in_type_ns(&self) -> Option<TypeNs> {
-        match self {
-            PathResolution::Def(ModuleDef::Adt(adt)) => Some(TypeNs::AdtId((*adt).into())),
-            PathResolution::Def(ModuleDef::BuiltinType(builtin)) => {
-                Some(TypeNs::BuiltinType((*builtin).into()))
-            }
-            PathResolution::Def(
-                ModuleDef::Const(_)
-                | ModuleDef::Variant(_)
-                | ModuleDef::Macro(_)
-                | ModuleDef::Function(_)
-                | ModuleDef::Module(_)
-                | ModuleDef::Static(_)
-                | ModuleDef::Trait(_)
-                | ModuleDef::TraitAlias(_),
-            ) => None,
-            PathResolution::Def(ModuleDef::TypeAlias(alias)) => {
-                Some(TypeNs::TypeAliasId((*alias).into()))
-            }
-            PathResolution::BuiltinAttr(_)
-            | PathResolution::ToolModule(_)
-            | PathResolution::Local(_)
-            | PathResolution::DeriveHelper(_)
-            | PathResolution::ConstParam(_) => None,
-            PathResolution::TypeParam(param) => Some(TypeNs::GenericParam((*param).into())),
-            PathResolution::SelfType(impl_def) => Some(TypeNs::SelfType((*impl_def).into())),
-        }
-    }
 }
 
 #[derive(Debug)]

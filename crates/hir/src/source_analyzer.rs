@@ -49,7 +49,7 @@ use syntax::{
 use triomphe::Arc;
 
 use crate::{
-    db::HirDatabase, semantics::PathResolution, Adt, AssocItem, BindingMode, BuiltinAttr,
+    db::HirDatabase, PathResolution, Adt, AssocItem, BindingMode, BuiltinAttr,
     BuiltinType, Callable, Const, DeriveHelper, Field, Function, Local, Macro, ModuleDef, Static,
     Struct, ToolModule, Trait, TraitAlias, TupleField, Type, TypeAlias, Variant,
 };
