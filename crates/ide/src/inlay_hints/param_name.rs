@@ -4,8 +4,8 @@
 //! _ = max(/*x*/4, /*y*/4);
 //! ```
 use either::Either;
-use hir::{Callable, Semantics};
-use ide_db::{base_db::FileRange, RootDatabase};
+use hir::Callable;
+use ide_db::{base_db::FileRange, semantics::Semantics};
 
 use stdx::to_lower_snake_case;
 use syntax::ast::{self, AstNode, HasArgList, HasName, UnaryOp};
@@ -14,7 +14,7 @@ use crate::{InlayHint, InlayHintLabel, InlayHintPosition, InlayHintsConfig, Inla
 
 pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: &InlayHintsConfig,
     expr: ast::Expr,
 ) -> Option<()> {
@@ -64,10 +64,7 @@ pub(super) fn hints(
     Some(())
 }
 
-fn get_callable(
-    sema: &Semantics<'_, RootDatabase>,
-    expr: &ast::Expr,
-) -> Option<(hir::Callable, ast::ArgList)> {
+fn get_callable(sema: &Semantics<'_>, expr: &ast::Expr) -> Option<(hir::Callable, ast::ArgList)> {
     match expr {
         ast::Expr::CallExpr(expr) => {
             let descended = sema.descend_node_into_attributes(expr.clone()).pop();
@@ -84,7 +81,7 @@ fn get_callable(
 }
 
 fn should_hide_param_name_hint(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     callable: &hir::Callable,
     param_name: &str,
     argument: &ast::Expr,
@@ -202,7 +199,7 @@ fn is_obvious_param(param_name: &str) -> bool {
 }
 
 fn is_adt_constructor_similar_to_param_name(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     argument: &ast::Expr,
     param_name: &str,
 ) -> bool {

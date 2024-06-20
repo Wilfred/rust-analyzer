@@ -6,9 +6,8 @@
 use either::Either;
 use hir::{
     Adjust, Adjustment, AutoBorrow, HirDisplay, Mutability, OverloadedDeref, PointerCast, Safety,
-    Semantics,
 };
-use ide_db::RootDatabase;
+use ide_db::semantics::Semantics;
 
 use stdx::never;
 use syntax::{
@@ -23,7 +22,7 @@ use crate::{
 
 pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: &InlayHintsConfig,
     expr: &ast::Expr,
 ) -> Option<()> {

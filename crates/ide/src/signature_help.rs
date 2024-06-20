@@ -4,14 +4,12 @@
 use std::collections::BTreeSet;
 
 use either::Either;
-use hir::{
-    AssocItem, DescendPreference, GenericParam, HirDisplay, ModuleDef, PathResolution, Semantics,
-    Trait,
-};
+use hir::{AssocItem, GenericParam, HirDisplay, ModuleDef, PathResolution, Trait};
 use ide_db::{
     active_parameter::{callable_for_node, generic_def_for_node},
     base_db::FilePosition,
     documentation::{Documentation, HasDocs},
+    semantics::{DescendPreference, Semantics},
     FxIndexMap,
 };
 use stdx::format_to;
@@ -155,7 +153,7 @@ pub(crate) fn signature_help(
 }
 
 fn signature_help_for_call(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     arg_list: ast::ArgList,
     token: SyntaxToken,
 ) -> Option<SignatureHelp> {
@@ -268,7 +266,7 @@ fn signature_help_for_call(
 }
 
 fn signature_help_for_generics(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     arg_list: ast::GenericArgList,
     token: SyntaxToken,
 ) -> Option<SignatureHelp> {
@@ -390,7 +388,7 @@ fn add_assoc_type_bindings(
 }
 
 fn signature_help_for_record_lit(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     record: ast::RecordExpr,
     token: SyntaxToken,
 ) -> Option<SignatureHelp> {
@@ -408,7 +406,7 @@ fn signature_help_for_record_lit(
 }
 
 fn signature_help_for_record_pat(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     record: ast::RecordPat,
     token: SyntaxToken,
 ) -> Option<SignatureHelp> {
@@ -425,7 +423,7 @@ fn signature_help_for_record_pat(
 }
 
 fn signature_help_for_tuple_struct_pat(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     pat: ast::TupleStructPat,
     token: SyntaxToken,
 ) -> Option<SignatureHelp> {
@@ -477,7 +475,7 @@ fn signature_help_for_tuple_struct_pat(
 }
 
 fn signature_help_for_tuple_pat(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     pat: ast::TuplePat,
     token: SyntaxToken,
 ) -> Option<SignatureHelp> {
@@ -503,7 +501,7 @@ fn signature_help_for_tuple_pat(
 }
 
 fn signature_help_for_tuple_expr(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     expr: ast::TupleExpr,
     token: SyntaxToken,
 ) -> Option<SignatureHelp> {
@@ -536,7 +534,7 @@ fn signature_help_for_tuple_expr(
 }
 
 fn signature_help_for_record_(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     field_list_children: SyntaxElementChildren,
     path: &ast::Path,
     fields2: impl Iterator<Item = (hir::Field, hir::Type)>,

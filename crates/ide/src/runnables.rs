@@ -2,9 +2,7 @@ use std::fmt;
 
 use ast::HasName;
 use cfg::{CfgAtom, CfgExpr};
-use hir::{
-    db::HirDatabase, AsAssocItem, AttrsWithOwner, HasAttrs, HasSource, HirFileIdExt, Semantics,
-};
+use hir::{db::HirDatabase, AsAssocItem, AttrsWithOwner, HasAttrs, HasSource, HirFileIdExt};
 use ide_assists::utils::{has_test_related_attribute, test_related_attribute_syn};
 use ide_db::{
     base_db::{FilePosition, FileRange},
@@ -12,6 +10,7 @@ use ide_db::{
     documentation::docs_from_attrs,
     helpers::visit_file_defs,
     search::{FileReferenceNode, SearchScope},
+    semantics::Semantics,
     FxHashMap, FxHashSet, RootDatabase, SymbolKind,
 };
 use itertools::Itertools;
@@ -238,7 +237,7 @@ pub(crate) fn related_tests(
 }
 
 fn find_related_tests(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     syntax: &SyntaxNode,
     position: FilePosition,
     search_scope: Option<SearchScope>,
@@ -278,7 +277,7 @@ fn find_related_tests(
 }
 
 fn find_related_tests_in_module(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     syntax: &SyntaxNode,
     fn_def: &ast::Fn,
     parent_module: &hir::Module,
@@ -296,7 +295,7 @@ fn find_related_tests_in_module(
     find_related_tests(sema, syntax, fn_pos, Some(mod_scope), tests)
 }
 
-fn as_test_runnable(sema: &Semantics<'_, RootDatabase>, fn_def: &ast::Fn) -> Option<Runnable> {
+fn as_test_runnable(sema: &Semantics<'_>, fn_def: &ast::Fn) -> Option<Runnable> {
     if test_related_attribute_syn(fn_def).is_some() {
         let function = sema.to_def(fn_def)?;
         runnable_fn(sema, function)
@@ -305,7 +304,7 @@ fn as_test_runnable(sema: &Semantics<'_, RootDatabase>, fn_def: &ast::Fn) -> Opt
     }
 }
 
-fn parent_test_module(sema: &Semantics<'_, RootDatabase>, fn_def: &ast::Fn) -> Option<hir::Module> {
+fn parent_test_module(sema: &Semantics<'_>, fn_def: &ast::Fn) -> Option<hir::Module> {
     fn_def.syntax().ancestors().find_map(|node| {
         let module = ast::Module::cast(node)?;
         let module = sema.to_def(&module)?;
@@ -318,10 +317,7 @@ fn parent_test_module(sema: &Semantics<'_, RootDatabase>, fn_def: &ast::Fn) -> O
     })
 }
 
-pub(crate) fn runnable_fn(
-    sema: &Semantics<'_, RootDatabase>,
-    def: hir::Function,
-) -> Option<Runnable> {
+pub(crate) fn runnable_fn(sema: &Semantics<'_>, def: hir::Function) -> Option<Runnable> {
     let under_cfg_test = has_cfg_test(def.module(sema.db).attrs(sema.db));
     let kind = if !under_cfg_test && def.is_main(sema.db) {
         RunnableKind::Bin
@@ -356,10 +352,7 @@ pub(crate) fn runnable_fn(
     Some(Runnable { use_name_in_title: false, nav, kind, cfg })
 }
 
-pub(crate) fn runnable_mod(
-    sema: &Semantics<'_, RootDatabase>,
-    def: hir::Module,
-) -> Option<Runnable> {
+pub(crate) fn runnable_mod(sema: &Semantics<'_>, def: hir::Module) -> Option<Runnable> {
     if !has_test_function_or_multiple_test_submodules(sema, &def, has_cfg_test(def.attrs(sema.db)))
     {
         return None;
@@ -378,10 +371,7 @@ pub(crate) fn runnable_mod(
     Some(Runnable { use_name_in_title: false, nav, kind: RunnableKind::TestMod { path }, cfg })
 }
 
-pub(crate) fn runnable_impl(
-    sema: &Semantics<'_, RootDatabase>,
-    def: &hir::Impl,
-) -> Option<Runnable> {
+pub(crate) fn runnable_impl(sema: &Semantics<'_>, def: &hir::Impl) -> Option<Runnable> {
     let attrs = def.attrs(sema.db);
     if !has_runnable_doc_test(&attrs) {
         return None;
@@ -408,10 +398,7 @@ fn has_cfg_test(attrs: AttrsWithOwner) -> bool {
 }
 
 /// Creates a test mod runnable for outline modules at the top of their definition.
-fn runnable_mod_outline_definition(
-    sema: &Semantics<'_, RootDatabase>,
-    def: hir::Module,
-) -> Option<Runnable> {
+fn runnable_mod_outline_definition(sema: &Semantics<'_>, def: hir::Module) -> Option<Runnable> {
     if !has_test_function_or_multiple_test_submodules(sema, &def, has_cfg_test(def.attrs(sema.db)))
     {
         return None;
@@ -544,7 +531,7 @@ fn has_runnable_doc_test(attrs: &hir::Attrs) -> bool {
 // We could create runnables for modules with number_of_test_submodules > 0,
 // but that bloats the runnables for no real benefit, since all tests can be run by the submodule already
 fn has_test_function_or_multiple_test_submodules(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     module: &hir::Module,
     consider_exported_main: bool,
 ) -> bool {

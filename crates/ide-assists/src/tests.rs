@@ -1,7 +1,7 @@
 mod generated;
 
 use expect_test::expect;
-use hir::Semantics;
+use ide_db::semantics::Semantics;
 use ide_db::{
     base_db::{FileId, FileRange, SourceDatabaseExt},
     imports::insert_use::{ImportGranularity, InsertUseConfig},

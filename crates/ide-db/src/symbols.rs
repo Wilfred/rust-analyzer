@@ -12,7 +12,8 @@ use hir_expand::{HirFileId, InFile};
 use hir_ty::{db::HirDatabase, display::HirDisplay};
 use syntax::{ast::HasName, AstNode, AstPtr, SmolStr, SyntaxNode, SyntaxNodePtr};
 
-use crate::{Module, ModuleDef, Semantics};
+use crate::semantics::Semantics;
+use hir::{Module, ModuleDef};
 
 /// The actual data that is stored in the index. It should be as compact as
 /// possible.
@@ -38,7 +39,7 @@ pub struct DeclarationLocation {
 }
 
 impl DeclarationLocation {
-    pub fn syntax<DB: HirDatabase>(&self, sema: &Semantics<'_, DB>) -> SyntaxNode {
+    pub fn syntax<DB: HirDatabase>(&self, sema: &Semantics<'_>) -> SyntaxNode {
         let root = sema.parse_or_expand(self.hir_file_id);
         self.ptr.to_node(&root)
     }

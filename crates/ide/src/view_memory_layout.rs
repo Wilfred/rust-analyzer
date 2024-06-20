@@ -1,9 +1,10 @@
 use std::fmt;
 
-use hir::{Field, HirDisplay, Layout, Semantics, Type};
+use hir::{Field, HirDisplay, Layout, Type};
 use ide_db::{
     defs::Definition,
     helpers::{get_definition, pick_best_token},
+    semantics::Semantics,
     RootDatabase,
 };
 use syntax::{AstNode, SyntaxKind};

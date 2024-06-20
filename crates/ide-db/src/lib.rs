@@ -5,6 +5,8 @@
 #![warn(rust_2018_idioms, unused_lifetimes)]
 
 mod apply_change;
+pub mod semantics;
+pub mod symbols;
 
 pub mod active_parameter;
 pub mod assists;
@@ -21,6 +23,7 @@ pub mod rust_doc;
 pub mod search;
 pub mod source_change;
 pub mod symbol_index;
+pub mod term_search;
 pub mod traits;
 pub mod ty_filter;
 pub mod use_trivial_constructor;

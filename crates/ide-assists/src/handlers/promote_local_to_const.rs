@@ -1,4 +1,5 @@
-use hir::{HirDisplay, ModuleDef, PathResolution, Semantics};
+use hir::{HirDisplay, ModuleDef, PathResolution};
+use ide_db::semantics::Semantics;
 use ide_db::{
     assists::{AssistId, AssistKind},
     defs::Definition,
@@ -103,7 +104,7 @@ pub(crate) fn promote_local_to_const(acc: &mut Assists, ctx: &AssistContext<'_>)
     )
 }
 
-fn is_body_const(sema: &Semantics<'_, RootDatabase>, expr: &ast::Expr) -> bool {
+fn is_body_const(sema: &Semantics<'_>, expr: &ast::Expr) -> bool {
     let mut is_const = true;
     preorder_expr(expr, &mut |ev| {
         let expr = match ev {

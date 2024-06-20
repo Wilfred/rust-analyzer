@@ -97,7 +97,7 @@ pub(crate) fn pull_assignment_up(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
 }
 
 struct AssignmentsCollector<'a> {
-    sema: &'a hir::Semantics<'a, ide_db::RootDatabase>,
+    sema: &'a ide_db::semantics::Semantics<'a>,
     common_lhs: ast::Expr,
     assignments: Vec<(ast::BinExpr, ast::Expr)>,
 }
@@ -151,7 +151,7 @@ impl AssignmentsCollector<'_> {
 }
 
 fn is_equivalent(
-    sema: &hir::Semantics<'_, ide_db::RootDatabase>,
+    sema: &ide_db::semantics::Semantics<'_>,
     expr0: &ast::Expr,
     expr1: &ast::Expr,
 ) -> bool {

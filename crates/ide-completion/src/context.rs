@@ -6,9 +6,8 @@ mod tests;
 
 use std::iter;
 
-use hir::{
-    HasAttrs, Local, Name, PathResolution, ScopeDef, Semantics, SemanticsScope, Type, TypeInfo,
-};
+use hir::{HasAttrs, Local, Name, PathResolution, ScopeDef, SemanticsScope, Type};
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{
     base_db::{FilePosition, SourceDatabase},
     famous_defs::FamousDefs,
@@ -423,7 +422,7 @@ pub(crate) enum ParamKind {
 /// exactly is the cursor, syntax-wise.
 #[derive(Debug)]
 pub(crate) struct CompletionContext<'a> {
-    pub(crate) sema: Semantics<'a, RootDatabase>,
+    pub(crate) sema: Semantics<'a>,
     pub(crate) scope: SemanticsScope<'a>,
     pub(crate) db: &'a RootDatabase,
     pub(crate) config: &'a CompletionConfig,

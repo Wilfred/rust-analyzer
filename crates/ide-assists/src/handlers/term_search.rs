@@ -1,11 +1,9 @@
 //! Term search assist
-use hir::{
-    term_search::{TermSearchConfig, TermSearchCtx},
-    ImportPathConfig,
-};
+use hir::ImportPathConfig;
 use ide_db::{
     assists::{AssistId, AssistKind, GroupLabel},
     famous_defs::FamousDefs,
+    term_search::{TermSearchConfig, TermSearchCtx},
 };
 
 use itertools::Itertools;
@@ -39,7 +37,7 @@ pub(crate) fn term_search(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
         goal: target_ty,
         config: TermSearchConfig { fuel: ctx.config.term_search_fuel, ..Default::default() },
     };
-    let paths = hir::term_search::term_search(&term_search_ctx);
+    let paths = ide_db::term_search::term_search(&term_search_ctx);
 
     if paths.is_empty() {
         return None;

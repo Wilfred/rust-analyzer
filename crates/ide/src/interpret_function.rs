@@ -1,4 +1,4 @@
-use hir::Semantics;
+use ide_db::semantics::Semantics;
 use ide_db::{
     base_db::{FilePosition, SourceDatabaseExt},
     LineIndexDatabase, RootDatabase,

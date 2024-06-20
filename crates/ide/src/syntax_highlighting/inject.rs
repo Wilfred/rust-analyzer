@@ -3,10 +3,10 @@
 use std::mem;
 
 use either::Either;
-use hir::{InFile, Semantics};
+use hir::InFile;
 use ide_db::{
     active_parameter::ActiveParameter, base_db::FileId, defs::Definition,
-    documentation::docs_with_rangemap, rust_doc::is_rust_fence, SymbolKind,
+    documentation::docs_with_rangemap, rust_doc::is_rust_fence, semantics::Semantics, SymbolKind,
 };
 use syntax::{
     ast::{self, AstNode, IsString, QuoteOffsets},
@@ -16,12 +16,12 @@ use syntax::{
 use crate::{
     doc_links::{doc_attributes, extract_definitions_from_docs, resolve_doc_path_for_def},
     syntax_highlighting::{highlights::Highlights, injector::Injector, HighlightConfig},
-    Analysis, HlMod, HlRange, HlTag, RootDatabase,
+    Analysis, HlMod, HlRange, HlTag,
 };
 
 pub(super) fn ra_fixture(
     hl: &mut Highlights,
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: HighlightConfig,
     literal: &ast::String,
     expanded: &ast::String,
@@ -106,7 +106,7 @@ const RUSTDOC_FENCES: [&str; 2] = ["```", "~~~"];
 /// Injection of syntax highlighting of doctests and intra doc links.
 pub(super) fn doc_comment(
     hl: &mut Highlights,
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: HighlightConfig,
     src_file_id: FileId,
     node: &SyntaxNode,

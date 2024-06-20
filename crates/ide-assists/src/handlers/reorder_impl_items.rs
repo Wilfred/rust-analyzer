@@ -1,4 +1,5 @@
-use hir::{PathResolution, Semantics};
+use hir::PathResolution;
+use ide_db::semantics::Semantics;
 use ide_db::{FxHashMap, RootDatabase};
 use itertools::Itertools;
 use syntax::{
@@ -119,7 +120,7 @@ fn compute_item_ranks(
     )
 }
 
-fn trait_definition(path: &ast::Path, sema: &Semantics<'_, RootDatabase>) -> Option<hir::Trait> {
+fn trait_definition(path: &ast::Path, sema: &Semantics<'_>) -> Option<hir::Trait> {
     match sema.resolve_path(path)? {
         PathResolution::Def(hir::ModuleDef::Trait(trait_)) => Some(trait_),
         _ => None,

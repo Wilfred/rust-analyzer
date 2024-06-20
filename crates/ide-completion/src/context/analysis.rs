@@ -1,7 +1,8 @@
 //! Module responsible for analyzing the code surrounding the cursor for completion.
 use std::iter;
 
-use hir::{Semantics, Type, TypeInfo, Variant};
+use hir::{Type, Variant};
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{active_parameter::ActiveParameter, RootDatabase};
 use itertools::Either;
 use syntax::{
@@ -37,7 +38,7 @@ pub(super) struct AnalysisResult {
 }
 
 pub(super) fn expand_and_analyze(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     original_file: SyntaxNode,
     speculative_file: SyntaxNode,
     offset: TextSize,
@@ -67,7 +68,7 @@ pub(super) fn expand_and_analyze(
 /// and fake file repeatedly. As soon as one of the two expansions fail we stop so the original
 /// and speculative states stay in sync.
 fn expand(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     mut original_file: SyntaxNode,
     mut speculative_file: SyntaxNode,
     mut offset: TextSize,
@@ -273,7 +274,7 @@ fn expand(
 /// Fill the completion context, this is what does semantic reasoning about the surrounding context
 /// of the completion location.
 fn analyze(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     expansion_result: ExpansionResult,
     original_token: &SyntaxToken,
     self_token: &SyntaxToken,
@@ -375,7 +376,7 @@ fn analyze(
 
 /// Calculate the expected type and name of the cursor position.
 fn expected_type_and_name(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     token: &SyntaxToken,
     name_like: &ast::NameLike,
 ) -> (Option<Type>, Option<NameOrNameRef>) {
@@ -559,7 +560,7 @@ fn expected_type_and_name(
 }
 
 fn classify_lifetime(
-    _sema: &Semantics<'_, RootDatabase>,
+    _sema: &Semantics<'_>,
     original_file: &SyntaxNode,
     lifetime: ast::Lifetime,
 ) -> Option<LifetimeContext> {
@@ -586,7 +587,7 @@ fn classify_lifetime(
 }
 
 fn classify_name(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     original_file: &SyntaxNode,
     name: ast::Name,
 ) -> Option<NameContext> {
@@ -626,7 +627,7 @@ fn classify_name(
 }
 
 fn classify_name_ref(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     original_file: &SyntaxNode,
     name_ref: ast::NameRef,
     parent: SyntaxNode,
@@ -1323,7 +1324,7 @@ fn classify_name_ref(
 }
 
 fn pattern_context_for(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     original_file: &SyntaxNode,
     pat: ast::Pat,
 ) -> PatternContext {
@@ -1427,7 +1428,7 @@ fn pattern_context_for(
 }
 
 fn fetch_immediate_impl(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     original_file: &SyntaxNode,
     node: &SyntaxNode,
 ) -> Option<ast::Impl> {
@@ -1465,7 +1466,7 @@ fn find_node_in_file<N: AstNode>(syntax: &SyntaxNode, node: &N) -> Option<N> {
 /// for the offset introduced by the fake ident.
 /// This is wrong if `node` comes before the insertion point! Use `find_node_in_file` instead.
 fn find_node_in_file_compensated<N: AstNode>(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     in_file: &SyntaxNode,
     node: &N,
 ) -> Option<N> {
@@ -1473,7 +1474,7 @@ fn find_node_in_file_compensated<N: AstNode>(
 }
 
 fn ancestors_in_file_compensated<'sema>(
-    sema: &'sema Semantics<'_, RootDatabase>,
+    sema: &'sema Semantics<'_>,
     in_file: &SyntaxNode,
     node: &SyntaxNode,
 ) -> Option<impl Iterator<Item = SyntaxNode> + 'sema> {
@@ -1497,7 +1498,7 @@ fn ancestors_in_file_compensated<'sema>(
 /// for the offset introduced by the fake ident..
 /// This is wrong if `node` comes before the insertion point! Use `find_node_in_file` instead.
 fn find_opt_node_in_file_compensated<N: AstNode>(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     syntax: &SyntaxNode,
     node: Option<N>,
 ) -> Option<N> {

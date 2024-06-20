@@ -1,15 +1,12 @@
 //! Functionality for obtaining data related to traits from the DB.
 
-use crate::{defs::Definition, RootDatabase};
-use hir::{db::HirDatabase, AsAssocItem, Semantics};
+use crate::{defs::Definition, semantics::Semantics, RootDatabase};
+use hir::{db::HirDatabase, AsAssocItem};
 use rustc_hash::FxHashSet;
 use syntax::{ast, AstNode};
 
 /// Given the `impl` block, attempts to find the trait this `impl` corresponds to.
-pub fn resolve_target_trait(
-    sema: &Semantics<'_, RootDatabase>,
-    impl_def: &ast::Impl,
-) -> Option<hir::Trait> {
+pub fn resolve_target_trait(sema: &Semantics<'_>, impl_def: &ast::Impl) -> Option<hir::Trait> {
     let ast_path =
         impl_def.trait_().map(|it| it.syntax().clone()).and_then(ast::PathType::cast)?.path()?;
 
@@ -21,10 +18,7 @@ pub fn resolve_target_trait(
 
 /// Given the `impl` block, returns the list of associated items (e.g. functions or types) that are
 /// missing in this `impl` block.
-pub fn get_missing_assoc_items(
-    sema: &Semantics<'_, RootDatabase>,
-    impl_def: &ast::Impl,
-) -> Vec<hir::AssocItem> {
+pub fn get_missing_assoc_items(sema: &Semantics<'_>, impl_def: &ast::Impl) -> Vec<hir::AssocItem> {
     let imp = match sema.to_def(impl_def) {
         Some(it) => it,
         None => return vec![],
@@ -113,9 +107,9 @@ fn assoc_item_of_trait(
 
 #[cfg(test)]
 mod tests {
+    use crate::semantics::Semantics;
     use base_db::FilePosition;
     use expect_test::{expect, Expect};
-    use hir::Semantics;
     use syntax::ast::{self, AstNode};
     use test_fixture::ChangeFixture;
 

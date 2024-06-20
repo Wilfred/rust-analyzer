@@ -1,6 +1,6 @@
 use std::iter::successors;
 
-use hir::{DescendPreference, Semantics};
+use ide_db::semantics::{DescendPreference, Semantics};
 use ide_db::RootDatabase;
 use syntax::{
     algo::{self, skip_trivia_token},
@@ -31,7 +31,7 @@ pub(crate) fn extend_selection(db: &RootDatabase, frange: FileRange) -> TextRang
 }
 
 fn try_extend_selection(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     root: &SyntaxNode,
     frange: FileRange,
 ) -> Option<TextRange> {
@@ -118,7 +118,7 @@ fn try_extend_selection(
 }
 
 fn extend_tokens_from_range(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     macro_call: ast::MacroCall,
     original_range: TextRange,
 ) -> Option<TextRange> {

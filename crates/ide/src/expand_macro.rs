@@ -1,7 +1,10 @@
-use hir::{DescendPreference, InFile, MacroFileIdExt, Semantics};
+use hir::{InFile, MacroFileIdExt};
 use ide_db::{
-    base_db::FileId, helpers::pick_best_token,
-    syntax_helpers::insert_whitespace_into_node::insert_ws_into, RootDatabase,
+    base_db::FileId,
+    helpers::pick_best_token,
+    semantics::{DescendPreference, Semantics},
+    syntax_helpers::insert_whitespace_into_node::insert_ws_into,
+    RootDatabase,
 };
 use syntax::{ast, ted, AstNode, NodeOrToken, SyntaxKind, SyntaxNode, T};
 
@@ -106,10 +109,7 @@ pub(crate) fn expand_macro(db: &RootDatabase, position: FilePosition) -> Option<
     Some(ExpandedMacro { name, expansion })
 }
 
-fn expand_macro_recur(
-    sema: &Semantics<'_, RootDatabase>,
-    macro_call: &ast::Item,
-) -> Option<SyntaxNode> {
+fn expand_macro_recur(sema: &Semantics<'_>, macro_call: &ast::Item) -> Option<SyntaxNode> {
     let expanded = match macro_call {
         item @ ast::Item::MacroCall(macro_call) => sema
             .expand_attr_macro(item)
@@ -120,7 +120,7 @@ fn expand_macro_recur(
     expand(sema, expanded)
 }
 
-fn expand(sema: &Semantics<'_, RootDatabase>, expanded: SyntaxNode) -> Option<SyntaxNode> {
+fn expand(sema: &Semantics<'_>, expanded: SyntaxNode) -> Option<SyntaxNode> {
     let children = expanded.descendants().filter_map(ast::Item::cast);
     let mut replacements = Vec::new();
 

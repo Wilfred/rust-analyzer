@@ -158,7 +158,11 @@ impl Completions {
         item.add_to(self, ctx.db);
     }
 
-    pub(crate) fn add_expr(&mut self, ctx: &CompletionContext<'_>, expr: &hir::term_search::Expr) {
+    pub(crate) fn add_expr(
+        &mut self,
+        ctx: &CompletionContext<'_>,
+        expr: &ide_db::term_search::Expr,
+    ) {
         if let Some(item) = render_expr(ctx, expr) {
             item.add_to(self, ctx.db)
         }

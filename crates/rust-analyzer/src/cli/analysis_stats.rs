@@ -25,6 +25,7 @@ use ide_db::{
         salsa::{self, debug::DebugQueryTable, ParallelDatabase},
         SourceDatabase, SourceDatabaseExt,
     },
+    semantics::Semantics,
     LineIndexDatabase, SnippetCap,
 };
 use itertools::Itertools;
@@ -370,7 +371,7 @@ impl flags::AnalysisStats {
         let mut sw = self.stop_watch();
 
         for &file_id in &file_ids {
-            let sema = hir::Semantics::new(db);
+            let sema = Semantics::new(db);
             let _ = db.parse(file_id);
 
             let parse = sema.parse(file_id);
@@ -413,16 +414,16 @@ impl flags::AnalysisStats {
                     None => continue,
                 };
 
-                let ctx = hir::term_search::TermSearchCtx {
+                let ctx = ide_db::term_search::TermSearchCtx {
                     sema: &sema,
                     scope: &scope,
                     goal: target_ty,
-                    config: hir::term_search::TermSearchConfig {
+                    config: ide_db::term_search::TermSearchConfig {
                         enable_borrowcheck: true,
                         ..Default::default()
                     },
                 };
-                let found_terms = hir::term_search::term_search(&ctx);
+                let found_terms = ide_db::term_search::term_search(&ctx);
 
                 if found_terms.is_empty() {
                     acc.tail_expr_no_term += 1;

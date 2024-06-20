@@ -4,7 +4,7 @@ use std::{mem, ops::Not};
 use either::Either;
 use hir::{
     Adt, AsAssocItem, AsExternAssocItem, CaptureKind, HasCrate, HasSource, HirDisplay, Layout,
-    LayoutError, Name, Semantics, Trait, Type, TypeInfo,
+    LayoutError, Name, Trait, Type,
 };
 use ide_db::{
     base_db::SourceDatabase,
@@ -12,6 +12,7 @@ use ide_db::{
     documentation::HasDocs,
     famous_defs::FamousDefs,
     generated::lints::{CLIPPY_LINTS, DEFAULT_LINTS, FEATURES},
+    semantics::{Semantics, TypeInfo},
     syntax_helpers::insert_whitespace_into_node,
     RootDatabase,
 };
@@ -27,7 +28,7 @@ use crate::{
 };
 
 pub(super) fn type_info_of(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     _config: &HoverConfig,
     expr_or_pat: &Either<ast::Expr, ast::Pat>,
 ) -> Option<HoverResult> {
@@ -39,7 +40,7 @@ pub(super) fn type_info_of(
 }
 
 pub(super) fn closure_expr(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: &HoverConfig,
     c: ast::ClosureExpr,
 ) -> Option<HoverResult> {
@@ -48,7 +49,7 @@ pub(super) fn closure_expr(
 }
 
 pub(super) fn try_expr(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     _config: &HoverConfig,
     try_expr: &ast::TryExpr,
 ) -> Option<HoverResult> {
@@ -139,7 +140,7 @@ pub(super) fn try_expr(
 }
 
 pub(super) fn deref_expr(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     _config: &HoverConfig,
     deref_expr: &ast::PrefixExpr,
 ) -> Option<HoverResult> {
@@ -201,7 +202,7 @@ pub(super) fn deref_expr(
 }
 
 pub(super) fn underscore(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: &HoverConfig,
     token: &SyntaxToken,
 ) -> Option<HoverResult> {
@@ -243,7 +244,7 @@ pub(super) fn underscore(
 }
 
 pub(super) fn keyword(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: &HoverConfig,
     token: &SyntaxToken,
 ) -> Option<HoverResult> {
@@ -270,7 +271,7 @@ pub(super) fn keyword(
 /// Only makes sense when there's a rest pattern in the record pattern.
 /// i.e. `let S {a, ..} = S {a: 1, b: 2}`
 pub(super) fn struct_rest_pat(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     _config: &HoverConfig,
     pattern: &ast::RecordPat,
 ) -> HoverResult {
@@ -523,7 +524,7 @@ pub(super) fn definition(
     markup(docs.map(Into::into), desc, mod_path)
 }
 
-pub(super) fn literal(sema: &Semantics<'_, RootDatabase>, token: SyntaxToken) -> Option<Markup> {
+pub(super) fn literal(sema: &Semantics<'_>, token: SyntaxToken) -> Option<Markup> {
     let lit = token.parent().and_then(ast::Literal::cast)?;
     let ty = if let Some(p) = lit.syntax().parent().and_then(ast::Pat::cast) {
         sema.type_of_pat(&p)?
@@ -610,11 +611,7 @@ fn render_notable_trait_comment(
     desc.is_empty().not().then_some(desc)
 }
 
-fn type_info(
-    sema: &Semantics<'_, RootDatabase>,
-    config: &HoverConfig,
-    ty: TypeInfo,
-) -> Option<HoverResult> {
+fn type_info(sema: &Semantics<'_>, config: &HoverConfig, ty: TypeInfo) -> Option<HoverResult> {
     if let Some(res) = closure_ty(sema, config, &ty) {
         return Some(res);
     };
@@ -691,7 +688,7 @@ fn type_info(
 }
 
 fn closure_ty(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: &HoverConfig,
     TypeInfo { original, adjusted }: &TypeInfo,
 ) -> Option<HoverResult> {
@@ -872,7 +869,7 @@ impl KeywordHint {
 }
 
 fn keyword_hints(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     token: &SyntaxToken,
     parent: syntax::SyntaxNode,
 ) -> KeywordHint {

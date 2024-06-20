@@ -4,8 +4,7 @@
 //!    Bar/* = 0*/,
 //! }
 //! ```
-use hir::Semantics;
-use ide_db::{base_db::FileId, famous_defs::FamousDefs, RootDatabase};
+use ide_db::{base_db::FileId, famous_defs::FamousDefs, semantics::Semantics};
 use syntax::ast::{self, AstNode, HasName};
 
 use crate::{
@@ -41,7 +40,7 @@ pub(super) fn enum_hints(
 
 fn variant_hints(
     acc: &mut Vec<InlayHint>,
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     variant: &ast::Variant,
 ) -> Option<()> {
     if variant.expr().is_some() {

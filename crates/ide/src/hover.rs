@@ -6,12 +6,13 @@ mod tests;
 use std::{iter, ops::Not};
 
 use either::Either;
-use hir::{db::DefDatabase, DescendPreference, HasCrate, HasSource, LangItem, Semantics};
+use hir::{db::DefDatabase, HasCrate, HasSource, LangItem};
 use ide_db::{
     base_db::FileRange,
     defs::{Definition, IdentClass, NameRefClass, OperatorClass},
     famous_defs::FamousDefs,
     helpers::pick_best_token,
+    semantics::{DescendPreference, Semantics},
     FxIndexSet, RootDatabase,
 };
 use itertools::{multizip, Itertools};
@@ -109,7 +110,7 @@ pub(crate) fn hover(
     frange @ FileRange { file_id, range }: FileRange,
     config: &HoverConfig,
 ) -> Option<RangeInfo<HoverResult>> {
-    let sema = &hir::Semantics::new(db);
+    let sema = &ide_db::semantics::Semantics::new(db);
     let file = sema.parse(file_id).syntax().clone();
     let mut res = if range.is_empty() {
         hover_simple(sema, FilePosition { file_id, offset: range.start() }, file, config)
@@ -125,7 +126,7 @@ pub(crate) fn hover(
 
 #[allow(clippy::field_reassign_with_default)]
 fn hover_simple(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     FilePosition { file_id, offset }: FilePosition,
     file: SyntaxNode,
     config: &HoverConfig,
@@ -309,7 +310,7 @@ fn hover_simple(
 }
 
 fn hover_ranged(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     FileRange { range, .. }: FileRange,
     file: SyntaxNode,
     config: &HoverConfig,
@@ -341,7 +342,7 @@ fn hover_ranged(
 
 // FIXME: Why is this pub(crate)?
 pub(crate) fn hover_for_definition(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     file_id: FileId,
     def: Definition,
     scope_node: &SyntaxNode,
@@ -446,7 +447,7 @@ fn show_fn_references_action(db: &RootDatabase, def: Definition) -> Option<Hover
 }
 
 fn runnable_action(
-    sema: &hir::Semantics<'_, RootDatabase>,
+    sema: &ide_db::semantics::Semantics<'_>,
     def: Definition,
     file_id: FileId,
 ) -> Option<HoverAction> {

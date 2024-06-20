@@ -27,6 +27,7 @@ memchr = "2.6.4"
 triomphe.workspace = true
 nohash-hasher.workspace = true
 bitflags.workspace = true
+smallvec.workspace = true
 
 # local deps
 base-db.workspace = true
@@ -40,6 +41,9 @@ span.workspace = true
 # ide should depend only on the top-level `hir` package. if you need
 # something from some `hir-xxx` subpackage, reexport the API via `hir`.
 hir.workspace = true
+hir-ty.workspace = true # fixme
+hir-expand.workspace = true # fixme
+hir-def.workspace = true # fixme
 
 line-index.workspace = true
 

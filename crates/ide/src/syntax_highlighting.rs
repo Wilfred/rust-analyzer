@@ -13,8 +13,11 @@ mod html;
 #[cfg(test)]
 mod tests;
 
-use hir::{DescendPreference, Name, Semantics};
-use ide_db::{FxHashMap, RootDatabase, SymbolKind};
+use hir::Name;
+use ide_db::{
+    semantics::{DescendPreference, Semantics},
+    FxHashMap, RootDatabase, SymbolKind,
+};
 use syntax::{
     ast::{self, IsString},
     AstNode, AstToken, NodeOrToken,
@@ -216,7 +219,7 @@ pub(crate) fn highlight(
 
 fn traverse(
     hl: &mut Highlights,
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: HighlightConfig,
     file_id: FileId,
     root: &SyntaxNode,

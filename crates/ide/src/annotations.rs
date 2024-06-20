@@ -1,8 +1,9 @@
-use hir::{HasSource, InFile, InRealFile, Semantics};
+use hir::{HasSource, InFile, InRealFile};
 use ide_db::{
     base_db::{FileId, FilePosition, FileRange},
     defs::Definition,
     helpers::visit_file_defs,
+    semantics::Semantics,
     FxHashSet, RootDatabase,
 };
 use itertools::Itertools;

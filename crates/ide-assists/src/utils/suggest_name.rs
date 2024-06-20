@@ -1,6 +1,6 @@
 //! This module contains functions to suggest names for expressions, functions and other items
 
-use hir::Semantics;
+use ide_db::semantics::Semantics;
 use ide_db::{FxHashSet, RootDatabase};
 use itertools::Itertools;
 use stdx::to_lower_snake_case;
@@ -132,7 +132,7 @@ pub(crate) fn for_impl_trait_as_generic(
 ///
 /// Currently it sticks to the first name found.
 // FIXME: Microoptimize and return a `SmolStr` here.
-pub(crate) fn for_variable(expr: &ast::Expr, sema: &Semantics<'_, RootDatabase>) -> String {
+pub(crate) fn for_variable(expr: &ast::Expr, sema: &Semantics<'_>) -> String {
     // `from_param` does not benefit from stripping
     // it need the largest context possible
     // so we check firstmost
@@ -237,7 +237,7 @@ fn from_method_call(expr: &ast::Expr) -> Option<String> {
     normalize(name)
 }
 
-fn from_param(expr: &ast::Expr, sema: &Semantics<'_, RootDatabase>) -> Option<String> {
+fn from_param(expr: &ast::Expr, sema: &Semantics<'_>) -> Option<String> {
     let arg_list = expr.syntax().parent().and_then(ast::ArgList::cast)?;
     let args_parent = arg_list.syntax().parent()?;
     let func = match_ast! {
@@ -268,7 +268,7 @@ fn var_name_from_pat(pat: &ast::Pat) -> Option<ast::Name> {
     }
 }
 
-fn from_type(expr: &ast::Expr, sema: &Semantics<'_, RootDatabase>) -> Option<String> {
+fn from_type(expr: &ast::Expr, sema: &Semantics<'_>) -> Option<String> {
     let ty = sema.type_of_expr(expr)?.adjusted();
     let ty = ty.remove_ref().unwrap_or(ty);
 

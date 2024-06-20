@@ -77,7 +77,8 @@ mod handlers {
 #[cfg(test)]
 mod tests;
 
-use hir::{diagnostics::AnyDiagnostic, InFile, Semantics};
+use hir::{diagnostics::AnyDiagnostic, InFile};
+use ide_db::semantics::Semantics;
 use ide_db::{
     assists::{Assist, AssistId, AssistKind, AssistResolveStrategy},
     base_db::{FileId, FileRange, SourceDatabase},
@@ -266,7 +267,7 @@ impl DiagnosticsConfig {
 
 struct DiagnosticsContext<'a> {
     config: &'a DiagnosticsConfig,
-    sema: Semantics<'a, RootDatabase>,
+    sema: Semantics<'a>,
     resolve: &'a AssistResolveStrategy,
 }
 
@@ -478,7 +479,7 @@ fn build_group_dict(
 }
 
 fn handle_lint_attributes(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     root: &SyntaxNode,
     rustc_stack: &mut FxHashMap<String, Vec<Severity>>,
     clippy_stack: &mut FxHashMap<String, Vec<Severity>>,

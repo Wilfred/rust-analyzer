@@ -3,8 +3,8 @@
 //! fn f(a: i32, b: i32) -> i32 { a + b }
 //! let _x /* i32 */= f(4, 4);
 //! ```
-use hir::Semantics;
-use ide_db::{base_db::FileId, famous_defs::FamousDefs, RootDatabase};
+use ide_db::semantics::Semantics;
+use ide_db::{base_db::FileId, famous_defs::FamousDefs};
 
 use itertools::Itertools;
 use syntax::{
@@ -114,11 +114,7 @@ pub(super) fn hints(
     Some(())
 }
 
-fn is_named_constructor(
-    sema: &Semantics<'_, RootDatabase>,
-    pat: &ast::IdentPat,
-    ty_name: &str,
-) -> Option<()> {
+fn is_named_constructor(sema: &Semantics<'_>, pat: &ast::IdentPat, ty_name: &str) -> Option<()> {
     let let_node = pat.syntax().parent()?;
     let expr = match_ast! {
         match let_node {

@@ -9,12 +9,12 @@
 //! at the index that the match starts at and its tree parent is
 //! resolved to the search element definition, we get a reference.
 
-use hir::{DescendPreference, PathResolution, Semantics};
+use hir::PathResolution;
 use ide_db::{
     base_db::FileId,
     defs::{Definition, NameClass, NameRefClass},
     search::{ReferenceCategory, SearchScope, UsageSearchResult},
-    RootDatabase,
+    semantics::{DescendPreference, Semantics},
 };
 use itertools::Itertools;
 use nohash_hasher::IntMap;
@@ -51,7 +51,7 @@ pub struct Declaration {
 //
 // image::https://user-images.githubusercontent.com/48062697/113020670-b7c34f00-917a-11eb-8003-370ac5f2b3cb.gif[]
 pub(crate) fn find_all_refs(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     position: FilePosition,
     search_scope: Option<SearchScope>,
 ) -> Option<Vec<ReferenceSearchResult>> {
@@ -122,7 +122,7 @@ pub(crate) fn find_all_refs(
 }
 
 pub(crate) fn find_defs<'a>(
-    sema: &'a Semantics<'_, RootDatabase>,
+    sema: &'a Semantics<'_>,
     syntax: &SyntaxNode,
     offset: TextSize,
 ) -> Option<impl IntoIterator<Item = Definition> + 'a> {
@@ -189,7 +189,7 @@ pub(crate) fn find_defs<'a>(
 fn retain_adt_literal_usages(
     usages: &mut UsageSearchResult,
     def: Definition,
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
 ) {
     let refs = usages.references.values_mut();
     match def {
@@ -252,11 +252,7 @@ fn name_for_constructor_search(syntax: &SyntaxNode, position: FilePosition) -> O
     }
 }
 
-fn is_enum_lit_name_ref(
-    sema: &Semantics<'_, RootDatabase>,
-    enum_: hir::Enum,
-    name_ref: &ast::NameRef,
-) -> bool {
+fn is_enum_lit_name_ref(sema: &Semantics<'_>, enum_: hir::Enum, name_ref: &ast::NameRef) -> bool {
     let path_is_variant_of_enum = |path: ast::Path| {
         matches!(
             sema.resolve_path(&path),

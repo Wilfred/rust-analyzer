@@ -1,7 +1,7 @@
 use hir::{
-    Adt, AsAssocItem, HasSource, HirDisplay, HirFileIdExt, Module, PathResolution, Semantics,
-    StructKind, Type, TypeInfo,
+    Adt, AsAssocItem, HasSource, HirDisplay, HirFileIdExt, Module, PathResolution, StructKind, Type,
 };
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{
     base_db::FileId,
     defs::{Definition, NameRefClass},
@@ -1053,7 +1053,7 @@ fn deduplicate_arg_names(arg_names: &mut [String]) {
     }
 }
 
-fn fn_arg_name(sema: &Semantics<'_, RootDatabase>, arg_expr: &ast::Expr) -> String {
+fn fn_arg_name(sema: &Semantics<'_>, arg_expr: &ast::Expr) -> String {
     let name = (|| match arg_expr {
         ast::Expr::CastExpr(cast_expr) => Some(fn_arg_name(sema, &cast_expr.expr()?)),
         expr => {

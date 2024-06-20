@@ -1,7 +1,8 @@
 //! See [`FamousDefs`].
 
+use crate::semantics::Semantics;
 use base_db::{CrateOrigin, LangCrateOrigin, SourceDatabase};
-use hir::{Crate, Enum, Function, Macro, Module, ScopeDef, Semantics, Trait};
+use hir::{Crate, Enum, Function, Macro, Module, ScopeDef, Trait};
 
 use crate::RootDatabase;
 
@@ -18,7 +19,7 @@ use crate::RootDatabase;
 /// ```text
 /// //- minicore: iterator, ord, derive
 /// ```
-pub struct FamousDefs<'a, 'b>(pub &'a Semantics<'b, RootDatabase>, pub Crate);
+pub struct FamousDefs<'a, 'b>(pub &'a Semantics<'b>, pub Crate);
 
 #[allow(non_snake_case)]
 impl FamousDefs<'_, '_> {

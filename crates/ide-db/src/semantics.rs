@@ -8,15 +8,15 @@ use std::{
     ops::{self, ControlFlow, Not},
 };
 
-use base_db::{FileId, FileRange};
+use base_db::{FileId, FileLoader as _, FileRange, SourceDatabase as _, Upcast as _};
 use either::Either;
 use hir_def::{
     hir::Expr,
     lower::LowerCtx,
     nameres::MacroSubNs,
-    resolver::{self, HasResolver, Resolver, TypeNs},
+    resolver::{HasResolver, TypeNs},
     type_ref::Mutability,
-    AsMacroCall, DefWithBodyId, FunctionId, MacroId, TraitId, VariantId,
+    AsMacroCall, DefWithBodyId, FunctionId, MacroId, VariantId,
 };
 use hir_expand::{
     attrs::collect_attrs,
@@ -27,7 +27,7 @@ use hir_expand::{
     InMacroFile, MacroCallId, MacroFileId, MacroFileIdExt,
 };
 use itertools::Itertools;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use smallvec::{smallvec, SmallVec};
 use span::{Span, SyntaxContextId, ROOT_ERASED_FILE_AST_ID};
 use stdx::TupleExt;
@@ -39,13 +39,19 @@ use syntax::{
 };
 
 use crate::{
-    db::HirDatabase,
     semantics::source_to_def::{ChildContainer, SourceToDefCache, SourceToDefCtx},
-    source_analyzer::{resolve_hir_path, SourceAnalyzer},
-    Access, Adjust, Adjustment, Adt, AutoBorrow, BindingMode, Callable, Const, Crate, Enum, Field,
+    RootDatabase,
+};
+
+use hir_def::path::Path;
+
+use hir::{
+    db::{DefDatabase as _, HirDatabase},
+    source_analyzer::SourceAnalyzer,
+    Access, Adjust, Adjustment, Adt, AutoBorrow, BindingMode, Callable, Const, Enum, Field,
     Function, HasSource, HirFileId, Impl, InFile, Label, LifetimeParam, Local, Macro, Module,
-    ModuleDef, Name, OverloadedDeref, Path, PathResolution, ScopeDef, Static, Struct, Trait,
-    TraitAlias, TupleField, Type, TypeAlias, Union, Variant, VariantDef,
+    ModuleDef, OverloadedDeref, PathResolution, SemanticsScope, Static, Struct, Trait, TraitAlias,
+    TupleField, Type, TypeAlias, Union, Variant, VariantDef,
 };
 
 pub enum DescendPreference {
@@ -78,13 +84,13 @@ impl TypeInfo {
 }
 
 /// Primary API to get semantic information, like types, from syntax trees.
-pub struct Semantics<'db, DB> {
-    pub db: &'db DB,
+pub struct Semantics<'db> {
+    pub db: &'db RootDatabase,
     imp: SemanticsImpl<'db>,
 }
 
 pub struct SemanticsImpl<'db> {
-    pub db: &'db dyn HirDatabase,
+    pub db: &'db RootDatabase,
     s2d_cache: RefCell<SourceToDefCache>,
     /// Rootnode to HirFileId cache
     root_to_file_cache: RefCell<FxHashMap<SyntaxNode, HirFileId>>,
@@ -92,13 +98,13 @@ pub struct SemanticsImpl<'db> {
     macro_call_cache: RefCell<FxHashMap<InFile<ast::MacroCall>, MacroFileId>>,
 }
 
-impl<DB> fmt::Debug for Semantics<'_, DB> {
+impl fmt::Debug for Semantics<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Semantics {{ ... }}")
     }
 }
 
-impl<'db, DB> ops::Deref for Semantics<'db, DB> {
+impl<'db> ops::Deref for Semantics<'db> {
     type Target = SemanticsImpl<'db>;
 
     fn deref(&self) -> &Self::Target {
@@ -106,8 +112,8 @@ impl<'db, DB> ops::Deref for Semantics<'db, DB> {
     }
 }
 
-impl<'db, DB: HirDatabase> Semantics<'db, DB> {
-    pub fn new(db: &DB) -> Semantics<'_, DB> {
+impl<'db> Semantics<'db> {
+    pub fn new(db: &RootDatabase) -> Semantics<'_> {
         let impl_ = SemanticsImpl::new(db);
         Semantics { db, imp: impl_ }
     }
@@ -243,7 +249,7 @@ impl<'db, DB: HirDatabase> Semantics<'db, DB> {
 }
 
 impl<'db> SemanticsImpl<'db> {
-    fn new(db: &'db dyn HirDatabase) -> Self {
+    fn new(db: &'db RootDatabase) -> Self {
         SemanticsImpl {
             db,
             s2d_cache: Default::default(),
@@ -1156,7 +1162,7 @@ impl<'db> SemanticsImpl<'db> {
             &analyze.resolver,
             analyze.resolver.type_owner(),
         )
-        .lower_ty(&crate::TypeRef::from_ast(&ctx, ty.clone()));
+        .lower_ty(&hir::TypeRef::from_ast(&ctx, ty.clone()));
         Some(Type::new_with_resolver(self.db, &analyze.resolver, ty))
     }
 
@@ -1717,152 +1723,34 @@ macro_rules! to_def_impls {
 }
 
 to_def_impls![
-    (crate::Module, ast::Module, module_to_def),
-    (crate::Module, ast::SourceFile, source_file_to_def),
-    (crate::Struct, ast::Struct, struct_to_def),
-    (crate::Enum, ast::Enum, enum_to_def),
-    (crate::Union, ast::Union, union_to_def),
-    (crate::Trait, ast::Trait, trait_to_def),
-    (crate::TraitAlias, ast::TraitAlias, trait_alias_to_def),
-    (crate::Impl, ast::Impl, impl_to_def),
-    (crate::TypeAlias, ast::TypeAlias, type_alias_to_def),
-    (crate::Const, ast::Const, const_to_def),
-    (crate::Static, ast::Static, static_to_def),
-    (crate::Function, ast::Fn, fn_to_def),
-    (crate::Field, ast::RecordField, record_field_to_def),
-    (crate::Field, ast::TupleField, tuple_field_to_def),
-    (crate::Variant, ast::Variant, enum_variant_to_def),
-    (crate::TypeParam, ast::TypeParam, type_param_to_def),
-    (crate::LifetimeParam, ast::LifetimeParam, lifetime_param_to_def),
-    (crate::ConstParam, ast::ConstParam, const_param_to_def),
-    (crate::GenericParam, ast::GenericParam, generic_param_to_def),
-    (crate::Macro, ast::Macro, macro_to_def),
-    (crate::Local, ast::IdentPat, bind_pat_to_def),
-    (crate::Local, ast::SelfParam, self_param_to_def),
-    (crate::Label, ast::Label, label_to_def),
-    (crate::Adt, ast::Adt, adt_to_def),
-    (crate::ExternCrateDecl, ast::ExternCrate, extern_crate_to_def),
+    (hir::Module, ast::Module, module_to_def),
+    (hir::Module, ast::SourceFile, source_file_to_def),
+    (hir::Struct, ast::Struct, struct_to_def),
+    (hir::Enum, ast::Enum, enum_to_def),
+    (hir::Union, ast::Union, union_to_def),
+    (hir::Trait, ast::Trait, trait_to_def),
+    (hir::TraitAlias, ast::TraitAlias, trait_alias_to_def),
+    (hir::Impl, ast::Impl, impl_to_def),
+    (hir::TypeAlias, ast::TypeAlias, type_alias_to_def),
+    (hir::Const, ast::Const, const_to_def),
+    (hir::Static, ast::Static, static_to_def),
+    (hir::Function, ast::Fn, fn_to_def),
+    (hir::Field, ast::RecordField, record_field_to_def),
+    (hir::Field, ast::TupleField, tuple_field_to_def),
+    (hir::Variant, ast::Variant, enum_variant_to_def),
+    (hir::TypeParam, ast::TypeParam, type_param_to_def),
+    (hir::LifetimeParam, ast::LifetimeParam, lifetime_param_to_def),
+    (hir::ConstParam, ast::ConstParam, const_param_to_def),
+    (hir::GenericParam, ast::GenericParam, generic_param_to_def),
+    (hir::Macro, ast::Macro, macro_to_def),
+    (hir::Local, ast::IdentPat, bind_pat_to_def),
+    (hir::Local, ast::SelfParam, self_param_to_def),
+    (hir::Label, ast::Label, label_to_def),
+    (hir::Adt, ast::Adt, adt_to_def),
+    (hir::ExternCrateDecl, ast::ExternCrate, extern_crate_to_def),
     (MacroCallId, ast::MacroCall, macro_call_to_macro_call),
 ];
 
 fn find_root(node: &SyntaxNode) -> SyntaxNode {
     node.ancestors().last().unwrap()
-}
-
-/// `SemanticsScope` encapsulates the notion of a scope (the set of visible
-/// names) at a particular program point.
-///
-/// It is a bit tricky, as scopes do not really exist inside the compiler.
-/// Rather, the compiler directly computes for each reference the definition it
-/// refers to. It might transiently compute the explicit scope map while doing
-/// so, but, generally, this is not something left after the analysis.
-///
-/// However, we do very much need explicit scopes for IDE purposes --
-/// completion, at its core, lists the contents of the current scope. The notion
-/// of scope is also useful to answer questions like "what would be the meaning
-/// of this piece of code if we inserted it into this position?".
-///
-/// So `SemanticsScope` is constructed from a specific program point (a syntax
-/// node or just a raw offset) and provides access to the set of visible names
-/// on a somewhat best-effort basis.
-///
-/// Note that if you are wondering "what does this specific existing name mean?",
-/// you'd better use the `resolve_` family of methods.
-#[derive(Debug)]
-pub struct SemanticsScope<'a> {
-    pub db: &'a dyn HirDatabase,
-    file_id: HirFileId,
-    resolver: Resolver,
-}
-
-impl SemanticsScope<'_> {
-    pub fn module(&self) -> Module {
-        Module { id: self.resolver.module() }
-    }
-
-    pub fn krate(&self) -> Crate {
-        Crate { id: self.resolver.krate() }
-    }
-
-    pub(crate) fn resolver(&self) -> &Resolver {
-        &self.resolver
-    }
-
-    /// Note: `VisibleTraits` should be treated as an opaque type, passed into `Type
-    pub fn visible_traits(&self) -> VisibleTraits {
-        let resolver = &self.resolver;
-        VisibleTraits(resolver.traits_in_scope(self.db.upcast()))
-    }
-
-    /// Calls the passed closure `f` on all names in scope.
-    pub fn process_all_names(&self, f: &mut dyn FnMut(Name, ScopeDef)) {
-        let scope = self.resolver.names_in_scope(self.db.upcast());
-        for (name, entries) in scope {
-            for entry in entries {
-                let def = match entry {
-                    resolver::ScopeDef::ModuleDef(it) => ScopeDef::ModuleDef(it.into()),
-                    resolver::ScopeDef::Unknown => ScopeDef::Unknown,
-                    resolver::ScopeDef::ImplSelfType(it) => ScopeDef::ImplSelfType(it.into()),
-                    resolver::ScopeDef::AdtSelfType(it) => ScopeDef::AdtSelfType(it.into()),
-                    resolver::ScopeDef::GenericParam(id) => ScopeDef::GenericParam(id.into()),
-                    resolver::ScopeDef::Local(binding_id) => match self.resolver.body_owner() {
-                        Some(parent) => ScopeDef::Local(Local { parent, binding_id }),
-                        None => continue,
-                    },
-                    resolver::ScopeDef::Label(label_id) => match self.resolver.body_owner() {
-                        Some(parent) => ScopeDef::Label(Label { parent, label_id }),
-                        None => continue,
-                    },
-                };
-                f(name.clone(), def)
-            }
-        }
-    }
-
-    /// Resolve a path as-if it was written at the given scope. This is
-    /// necessary a heuristic, as it doesn't take hygiene into account.
-    pub fn speculative_resolve(&self, path: &ast::Path) -> Option<PathResolution> {
-        let ctx = LowerCtx::new(self.db.upcast(), self.file_id);
-        let path = Path::from_src(&ctx, path.clone())?;
-        resolve_hir_path(self.db, &self.resolver, &path)
-    }
-
-    /// Iterates over associated types that may be specified after the given path (using
-    /// `Ty::Assoc` syntax).
-    pub fn assoc_type_shorthand_candidates<R>(
-        &self,
-        resolution: &PathResolution,
-        mut cb: impl FnMut(&Name, TypeAlias) -> Option<R>,
-    ) -> Option<R> {
-        let def = self.resolver.generic_def()?;
-        hir_ty::associated_type_shorthand_candidates(
-            self.db,
-            def,
-            resolution.in_type_ns()?,
-            |name, id| cb(name, id.into()),
-        )
-    }
-
-    pub fn extern_crates(&self) -> impl Iterator<Item = (Name, Module)> + '_ {
-        self.resolver.extern_crates_in_scope().map(|(name, id)| (name, Module { id }))
-    }
-
-    pub fn extern_crate_decls(&self) -> impl Iterator<Item = Name> + '_ {
-        self.resolver.extern_crate_decls_in_scope(self.db.upcast())
-    }
-
-    pub fn has_same_self_type(&self, other: &SemanticsScope<'_>) -> bool {
-        self.resolver.impl_def() == other.resolver.impl_def()
-    }
-}
-
-#[derive(Debug)]
-pub struct VisibleTraits(pub FxHashSet<TraitId>);
-
-impl ops::Deref for VisibleTraits {
-    type Target = FxHashSet<TraitId>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
 }

@@ -4,11 +4,12 @@
 //! tests. This module also implements a couple of magic tricks, like renaming
 //! `self` and to `self` (to switch between associated function and method).
 
-use hir::{AsAssocItem, HirFileIdExt, InFile, Semantics};
+use hir::{AsAssocItem, HirFileIdExt, InFile};
 use ide_db::{
     base_db::{FileId, FileRange},
     defs::{Definition, NameClass, NameRefClass},
     rename::{bail, format_err, source_edit_from_references, IdentifierKind},
+    semantics::Semantics,
     source_change::SourceChangeBuilder,
     RootDatabase,
 };
@@ -200,7 +201,7 @@ fn alias_fallback(
 }
 
 fn find_definitions(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     syntax: &SyntaxNode,
     FilePosition { file_id, offset }: FilePosition,
 ) -> RenameResult<impl Iterator<Item = (FileRange, SyntaxKind, Definition)>> {
@@ -307,10 +308,7 @@ fn find_definitions(
     }
 }
 
-fn rename_to_self(
-    sema: &Semantics<'_, RootDatabase>,
-    local: hir::Local,
-) -> RenameResult<SourceChange> {
+fn rename_to_self(sema: &Semantics<'_>, local: hir::Local) -> RenameResult<SourceChange> {
     if never!(local.is_self(sema.db)) {
         bail!("rename_to_self invoked on self");
     }
@@ -379,7 +377,7 @@ fn rename_to_self(
 }
 
 fn rename_self_to_param(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     local: hir::Local,
     self_param: hir::SelfParam,
     new_name: &str,

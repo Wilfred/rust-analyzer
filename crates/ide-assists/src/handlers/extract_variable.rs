@@ -1,4 +1,4 @@
-use hir::TypeInfo;
+use ide_db::semantics::TypeInfo;
 use syntax::{
     ast::{self, edit::IndentLevel, edit_in_place::Indent, make, AstNode, HasName},
     ted, NodeOrToken,

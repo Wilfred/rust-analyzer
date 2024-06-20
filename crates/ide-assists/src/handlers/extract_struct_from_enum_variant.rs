@@ -409,7 +409,7 @@ fn process_references(
 }
 
 fn reference_to_node(
-    sema: &hir::Semantics<'_, RootDatabase>,
+    sema: &ide_db::semantics::Semantics<'_>,
     reference: FileReference,
 ) -> Option<(ast::PathSegment, SyntaxNode, hir::Module)> {
     let segment =

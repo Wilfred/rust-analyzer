@@ -79,7 +79,7 @@ pub(crate) fn generate_from_impl_for_enum(
 }
 
 fn existing_from_impl(
-    sema: &'_ hir::Semantics<'_, RootDatabase>,
+    sema: &'_ ide_db::semantics::Semantics<'_>,
     variant: &ast::Variant,
 ) -> Option<()> {
     let variant = sema.to_def(variant)?;

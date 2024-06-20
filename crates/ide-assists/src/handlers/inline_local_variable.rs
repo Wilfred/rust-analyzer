@@ -1,4 +1,5 @@
-use hir::{PathResolution, Semantics};
+use hir::PathResolution;
+use ide_db::semantics::Semantics;
 use ide_db::{
     base_db::FileId,
     defs::Definition,
@@ -147,7 +148,7 @@ struct InlineData {
 }
 
 fn inline_let(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     let_stmt: ast::LetStmt,
     range: TextRange,
     file_id: FileId,
@@ -182,7 +183,7 @@ fn inline_let(
 }
 
 fn inline_usage(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     path_expr: ast::PathExpr,
     range: TextRange,
     file_id: FileId,

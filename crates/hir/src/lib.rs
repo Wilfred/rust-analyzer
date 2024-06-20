@@ -21,8 +21,7 @@
 #![cfg_attr(feature = "in-rust-tree", feature(rustc_private))]
 #![recursion_limit = "512"]
 
-mod semantics;
-mod source_analyzer;
+pub mod source_analyzer;
 
 mod attrs;
 mod from_id;
@@ -30,8 +29,7 @@ mod has_source;
 
 pub mod db;
 pub mod diagnostics;
-pub mod symbols;
-pub mod term_search;
+pub mod semantics_scope;
 
 mod display;
 
@@ -79,6 +77,7 @@ use hir_ty::{
 use itertools::Itertools;
 use nameres::diagnostics::DefDiagnosticKind;
 use rustc_hash::FxHashSet;
+pub use semantics_scope::SemanticsScope;
 use span::{Edition, MacroCallId};
 use stdx::{impl_from, never};
 use syntax::{
@@ -87,15 +86,14 @@ use syntax::{
 };
 use triomphe::Arc;
 
-use crate::db::{DefDatabase, HirDatabase};
+use crate::db::DefDatabase;
+pub use crate::db::HirDatabase;
 
 pub use crate::{
     attrs::{resolve_doc_path_on, HasAttrs},
     diagnostics::*,
     has_source::HasSource,
-    semantics::{
-        DescendPreference, Semantics, SemanticsImpl, SemanticsScope, TypeInfo, VisibleTraits,
-    },
+    semantics_scope::VisibleTraits,
 };
 pub use hir_ty::method_resolution::TyFingerprint;
 
@@ -274,7 +272,7 @@ impl Crate {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Module {
-    pub(crate) id: ModuleId,
+    pub id: ModuleId,
 }
 
 /// The defs which can be visible in the module.
@@ -2462,7 +2460,7 @@ impl HasVisibility for Static {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Trait {
-    pub(crate) id: TraitId,
+    pub id: TraitId,
 }
 
 impl Trait {
@@ -2667,7 +2665,7 @@ pub enum MacroKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Macro {
-    pub(crate) id: MacroId,
+    pub id: MacroId,
 }
 
 impl Macro {
@@ -3165,8 +3163,8 @@ impl GenericDef {
 /// A single local definition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Local {
-    pub(crate) parent: DefWithBodyId,
-    pub(crate) binding_id: BindingId,
+    pub parent: DefWithBodyId,
+    pub binding_id: BindingId,
 }
 
 pub struct LocalSource {
@@ -3987,22 +3985,18 @@ pub struct Type {
 }
 
 impl Type {
-    pub(crate) fn new_with_resolver(db: &dyn HirDatabase, resolver: &Resolver, ty: Ty) -> Type {
+    pub fn new_with_resolver(db: &dyn HirDatabase, resolver: &Resolver, ty: Ty) -> Type {
         Type::new_with_resolver_inner(db, resolver, ty)
     }
 
-    pub(crate) fn new_with_resolver_inner(
-        db: &dyn HirDatabase,
-        resolver: &Resolver,
-        ty: Ty,
-    ) -> Type {
+    pub fn new_with_resolver_inner(db: &dyn HirDatabase, resolver: &Resolver, ty: Ty) -> Type {
         let environment = resolver
             .generic_def()
             .map_or_else(|| TraitEnvironment::empty(resolver.krate()), |d| db.trait_environment(d));
         Type { env: environment, ty }
     }
 
-    pub(crate) fn new_for_crate(krate: CrateId, ty: Ty) -> Type {
+    pub fn new_for_crate(krate: CrateId, ty: Ty) -> Type {
         Type { env: TraitEnvironment::empty(krate), ty }
     }
 
@@ -4017,7 +4011,7 @@ impl Type {
         )
     }
 
-    fn new(db: &dyn HirDatabase, lexical_env: impl HasResolver, ty: Ty) -> Type {
+    pub fn new(db: &dyn HirDatabase, lexical_env: impl HasResolver, ty: Ty) -> Type {
         let resolver = lexical_env.resolver(db.upcast());
         let environment = resolver
             .generic_def()
@@ -4461,7 +4455,7 @@ impl Type {
         TyFingerprint::for_trait_impl(&self.ty)
     }
 
-    pub(crate) fn canonical(&self) -> Canonical<Ty> {
+    pub fn canonical(&self) -> Canonical<Ty> {
         hir_ty::replace_errors_with_variables(&self.ty)
     }
 
@@ -5420,7 +5414,7 @@ pub enum PathResolution {
 }
 
 impl PathResolution {
-    pub(crate) fn in_type_ns(&self) -> Option<TypeNs> {
+    pub fn in_type_ns(&self) -> Option<TypeNs> {
         match self {
             PathResolution::Def(ModuleDef::Adt(adt)) => Some(TypeNs::AdtId((*adt).into())),
             PathResolution::Def(ModuleDef::BuiltinType(builtin)) => {

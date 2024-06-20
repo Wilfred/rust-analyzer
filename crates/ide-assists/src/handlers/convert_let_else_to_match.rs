@@ -1,4 +1,4 @@
-use hir::Semantics;
+use ide_db::semantics::Semantics;
 use ide_db::RootDatabase;
 use syntax::ast::RangeItem;
 use syntax::ast::{edit::AstNodeEdit, AstNode, HasName, LetStmt, Name, Pat};
@@ -89,11 +89,7 @@ pub(crate) fn convert_let_else_to_match(acc: &mut Assists, ctx: &AssistContext<'
 }
 
 /// Gets a list of binders in a pattern, and whether they are mut.
-fn binders_in_pat(
-    acc: &mut Vec<(Name, bool)>,
-    pat: &Pat,
-    sem: &Semantics<'_, RootDatabase>,
-) -> Option<()> {
+fn binders_in_pat(acc: &mut Vec<(Name, bool)>, pat: &Pat, sem: &Semantics<'_>) -> Option<()> {
     use Pat::*;
     match pat {
         IdentPat(p) => {

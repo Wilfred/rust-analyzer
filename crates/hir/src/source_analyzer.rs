@@ -57,15 +57,15 @@ use crate::{
 /// `SourceAnalyzer` is a convenience wrapper which exposes HIR API in terms of
 /// original source files. It should not be used inside the HIR itself.
 #[derive(Debug)]
-pub(crate) struct SourceAnalyzer {
-    pub(crate) file_id: HirFileId,
-    pub(crate) resolver: Resolver,
+pub struct SourceAnalyzer {
+    pub file_id: HirFileId,
+    pub resolver: Resolver,
     def: Option<(DefWithBodyId, Arc<Body>, Arc<BodySourceMap>)>,
     infer: Option<Arc<InferenceResult>>,
 }
 
 impl SourceAnalyzer {
-    pub(crate) fn new_for_body(
+    pub fn new_for_body(
         db: &dyn HirDatabase,
         def: DefWithBodyId,
         node @ InFile { file_id, .. }: InFile<&SyntaxNode>,
@@ -86,7 +86,7 @@ impl SourceAnalyzer {
         }
     }
 
-    pub(crate) fn new_for_body_no_infer(
+    pub fn new_for_body_no_infer(
         db: &dyn HirDatabase,
         def: DefWithBodyId,
         node @ InFile { file_id, .. }: InFile<&SyntaxNode>,
@@ -102,10 +102,7 @@ impl SourceAnalyzer {
         SourceAnalyzer { resolver, def: Some((def, body, source_map)), infer: None, file_id }
     }
 
-    pub(crate) fn new_for_resolver(
-        resolver: Resolver,
-        node: InFile<&SyntaxNode>,
-    ) -> SourceAnalyzer {
+    pub fn new_for_resolver(resolver: Resolver, node: InFile<&SyntaxNode>) -> SourceAnalyzer {
         SourceAnalyzer { resolver, def: None, infer: None, file_id: node.file_id }
     }
 
@@ -165,7 +162,7 @@ impl SourceAnalyzer {
         Some(res)
     }
 
-    pub(crate) fn expr_adjustments(
+    pub fn expr_adjustments(
         &self,
         db: &dyn HirDatabase,
         expr: &ast::Expr,
@@ -175,7 +172,7 @@ impl SourceAnalyzer {
         infer.expr_adjustments.get(&expr_id).map(|v| &**v)
     }
 
-    pub(crate) fn type_of_expr(
+    pub fn type_of_expr(
         &self,
         db: &dyn HirDatabase,
         expr: &ast::Expr,
@@ -191,7 +188,7 @@ impl SourceAnalyzer {
         Some((mk_ty(ty), coerced.map(mk_ty)))
     }
 
-    pub(crate) fn type_of_pat(
+    pub fn type_of_pat(
         &self,
         db: &dyn HirDatabase,
         pat: &ast::Pat,
@@ -205,7 +202,7 @@ impl SourceAnalyzer {
         Some((mk_ty(ty), coerced.map(mk_ty)))
     }
 
-    pub(crate) fn type_of_binding_in_pat(
+    pub fn type_of_binding_in_pat(
         &self,
         db: &dyn HirDatabase,
         pat: &ast::IdentPat,
@@ -217,17 +214,13 @@ impl SourceAnalyzer {
         Some(mk_ty(ty))
     }
 
-    pub(crate) fn type_of_self(
-        &self,
-        db: &dyn HirDatabase,
-        _param: &ast::SelfParam,
-    ) -> Option<Type> {
+    pub fn type_of_self(&self, db: &dyn HirDatabase, _param: &ast::SelfParam) -> Option<Type> {
         let binding = self.body()?.self_param?;
         let ty = self.infer.as_ref()?[binding].clone();
         Some(Type::new_with_resolver(db, &self.resolver, ty))
     }
 
-    pub(crate) fn binding_mode_of_pat(
+    pub fn binding_mode_of_pat(
         &self,
         _db: &dyn HirDatabase,
         pat: &ast::IdentPat,
@@ -242,7 +235,7 @@ impl SourceAnalyzer {
             }
         })
     }
-    pub(crate) fn pattern_adjustments(
+    pub fn pattern_adjustments(
         &self,
         db: &dyn HirDatabase,
         pat: &ast::Pat,
@@ -259,7 +252,7 @@ impl SourceAnalyzer {
         )
     }
 
-    pub(crate) fn resolve_method_call_as_callable(
+    pub fn resolve_method_call_as_callable(
         &self,
         db: &dyn HirDatabase,
         call: &ast::MethodCallExpr,
@@ -273,7 +266,7 @@ impl SourceAnalyzer {
         Some(res)
     }
 
-    pub(crate) fn resolve_method_call(
+    pub fn resolve_method_call(
         &self,
         db: &dyn HirDatabase,
         call: &ast::MethodCallExpr,
@@ -284,7 +277,7 @@ impl SourceAnalyzer {
         Some(self.resolve_impl_method_or_trait_def(db, f_in_trait, substs).into())
     }
 
-    pub(crate) fn resolve_method_call_fallback(
+    pub fn resolve_method_call_fallback(
         &self,
         db: &dyn HirDatabase,
         call: &ast::MethodCallExpr,
@@ -303,7 +296,7 @@ impl SourceAnalyzer {
         }
     }
 
-    pub(crate) fn resolve_expr_as_callable(
+    pub fn resolve_expr_as_callable(
         &self,
         db: &dyn HirDatabase,
         call: &ast::Expr,
@@ -312,7 +305,7 @@ impl SourceAnalyzer {
         adjusted.unwrap_or(orig).as_callable(db)
     }
 
-    pub(crate) fn resolve_field(
+    pub fn resolve_field(
         &self,
         db: &dyn HirDatabase,
         field: &ast::FieldExpr,
@@ -324,7 +317,7 @@ impl SourceAnalyzer {
         })
     }
 
-    pub(crate) fn resolve_field_fallback(
+    pub fn resolve_field_fallback(
         &self,
         db: &dyn HirDatabase,
         field: &ast::FieldExpr,
@@ -344,7 +337,7 @@ impl SourceAnalyzer {
         }
     }
 
-    pub(crate) fn resolve_await_to_poll(
+    pub fn resolve_await_to_poll(
         &self,
         db: &dyn HirDatabase,
         await_expr: &ast::AwaitExpr,
@@ -381,7 +374,7 @@ impl SourceAnalyzer {
         Some(self.resolve_impl_method_or_trait_def(db, poll_fn, substs))
     }
 
-    pub(crate) fn resolve_prefix_expr(
+    pub fn resolve_prefix_expr(
         &self,
         db: &dyn HirDatabase,
         prefix_expr: &ast::PrefixExpr,
@@ -421,7 +414,7 @@ impl SourceAnalyzer {
         Some(self.resolve_impl_method_or_trait_def(db, op_fn, substs))
     }
 
-    pub(crate) fn resolve_index_expr(
+    pub fn resolve_index_expr(
         &self,
         db: &dyn HirDatabase,
         index_expr: &ast::IndexExpr,
@@ -454,7 +447,7 @@ impl SourceAnalyzer {
         Some(self.resolve_impl_method_or_trait_def(db, op_fn, substs))
     }
 
-    pub(crate) fn resolve_bin_expr(
+    pub fn resolve_bin_expr(
         &self,
         db: &dyn HirDatabase,
         binop_expr: &ast::BinExpr,
@@ -475,7 +468,7 @@ impl SourceAnalyzer {
         Some(self.resolve_impl_method_or_trait_def(db, op_fn, substs))
     }
 
-    pub(crate) fn resolve_try_expr(
+    pub fn resolve_try_expr(
         &self,
         db: &dyn HirDatabase,
         try_expr: &ast::TryExpr,
@@ -494,7 +487,7 @@ impl SourceAnalyzer {
         Some(self.resolve_impl_method_or_trait_def(db, op_fn, substs))
     }
 
-    pub(crate) fn resolve_record_field(
+    pub fn resolve_record_field(
         &self,
         db: &dyn HirDatabase,
         field: &ast::RecordExprField,
@@ -528,7 +521,7 @@ impl SourceAnalyzer {
         Some((field.into(), local, Type::new_with_resolver(db, &self.resolver, field_ty)))
     }
 
-    pub(crate) fn resolve_record_pat_field(
+    pub fn resolve_record_pat_field(
         &self,
         db: &dyn HirDatabase,
         field: &ast::RecordPatField,
@@ -545,7 +538,7 @@ impl SourceAnalyzer {
         Some((field.into(), Type::new_with_resolver(db, &self.resolver, field_ty)))
     }
 
-    pub(crate) fn resolve_macro_call(
+    pub fn resolve_macro_call(
         &self,
         db: &dyn HirDatabase,
         macro_call: InFile<&ast::MacroCall>,
@@ -557,7 +550,7 @@ impl SourceAnalyzer {
             .map(|(it, _)| it.into())
     }
 
-    pub(crate) fn resolve_bind_pat_to_const(
+    pub fn resolve_bind_pat_to_const(
         &self,
         db: &dyn HirDatabase,
         pat: &ast::IdentPat,
@@ -575,11 +568,7 @@ impl SourceAnalyzer {
         }
     }
 
-    pub(crate) fn resolve_path(
-        &self,
-        db: &dyn HirDatabase,
-        path: &ast::Path,
-    ) -> Option<PathResolution> {
+    pub fn resolve_path(&self, db: &dyn HirDatabase, path: &ast::Path) -> Option<PathResolution> {
         let parent = path.syntax().parent();
         let parent = || parent.clone();
 
@@ -764,7 +753,7 @@ impl SourceAnalyzer {
         }
     }
 
-    pub(crate) fn record_literal_missing_fields(
+    pub fn record_literal_missing_fields(
         &self,
         db: &dyn HirDatabase,
         literal: &ast::RecordExpr,
@@ -781,7 +770,7 @@ impl SourceAnalyzer {
         Some(res)
     }
 
-    pub(crate) fn record_pattern_missing_fields(
+    pub fn record_pattern_missing_fields(
         &self,
         db: &dyn HirDatabase,
         pattern: &ast::RecordPat,
@@ -817,7 +806,7 @@ impl SourceAnalyzer {
             .collect()
     }
 
-    pub(crate) fn expand(
+    pub fn expand(
         &self,
         db: &dyn HirDatabase,
         macro_call: InFile<&ast::MacroCall>,
@@ -832,7 +821,7 @@ impl SourceAnalyzer {
         Some(macro_call_id.as_macro_file()).filter(|it| it.expansion_level(db.upcast()) < 64)
     }
 
-    pub(crate) fn resolve_variant(
+    pub fn resolve_variant(
         &self,
         db: &dyn HirDatabase,
         record_lit: ast::RecordExpr,
@@ -842,7 +831,7 @@ impl SourceAnalyzer {
         infer.variant_resolution_for_expr(expr_id)
     }
 
-    pub(crate) fn is_unsafe_macro_call_expr(
+    pub fn is_unsafe_macro_call_expr(
         &self,
         db: &dyn HirDatabase,
         macro_expr: InFile<&ast::MacroExpr>,
@@ -864,7 +853,7 @@ impl SourceAnalyzer {
         false
     }
 
-    pub(crate) fn resolve_offset_in_format_args(
+    pub fn resolve_offset_in_format_args(
         &self,
         db: &dyn HirDatabase,
         format_args: InFile<&ast::FormatArgsExpr>,
@@ -887,7 +876,7 @@ impl SourceAnalyzer {
         })
     }
 
-    pub(crate) fn as_format_args_parts<'a>(
+    pub fn as_format_args_parts<'a>(
         &'a self,
         db: &'a dyn HirDatabase,
         format_args: InFile<&ast::FormatArgsExpr>,
@@ -1040,7 +1029,7 @@ fn adjust(
 }
 
 #[inline]
-pub(crate) fn resolve_hir_path(
+pub fn resolve_hir_path(
     db: &dyn HirDatabase,
     resolver: &Resolver,
     path: &Path,
@@ -1049,7 +1038,7 @@ pub(crate) fn resolve_hir_path(
 }
 
 #[inline]
-pub(crate) fn resolve_hir_path_as_attr_macro(
+pub fn resolve_hir_path_as_attr_macro(
     db: &dyn HirDatabase,
     resolver: &Resolver,
     path: &Path,

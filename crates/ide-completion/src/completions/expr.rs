@@ -350,30 +350,30 @@ pub(crate) fn complete_expr(acc: &mut Completions, ctx: &CompletionContext<'_>) 
             return;
         }
 
-        let term_search_ctx = hir::term_search::TermSearchCtx {
+        let term_search_ctx = ide_db::term_search::TermSearchCtx {
             sema: &ctx.sema,
             scope: &ctx.scope,
             goal: ty.clone(),
-            config: hir::term_search::TermSearchConfig {
+            config: ide_db::term_search::TermSearchConfig {
                 enable_borrowcheck: false,
                 many_alternatives_threshold: 1,
                 fuel: 200,
             },
         };
-        let exprs = hir::term_search::term_search(&term_search_ctx);
+        let exprs = ide_db::term_search::term_search(&term_search_ctx);
         for expr in exprs {
             // Expand method calls
             match expr {
-                hir::term_search::Expr::Method { func, generics, target, params }
+                ide_db::term_search::Expr::Method { func, generics, target, params }
                     if target.is_many() =>
                 {
                     let target_ty = target.ty(ctx.db);
                     let term_search_ctx =
-                        hir::term_search::TermSearchCtx { goal: target_ty, ..term_search_ctx };
-                    let target_exprs = hir::term_search::term_search(&term_search_ctx);
+                        ide_db::term_search::TermSearchCtx { goal: target_ty, ..term_search_ctx };
+                    let target_exprs = ide_db::term_search::term_search(&term_search_ctx);
 
                     for expr in target_exprs {
-                        let expanded_expr = hir::term_search::Expr::Method {
+                        let expanded_expr = ide_db::term_search::Expr::Method {
                             func,
                             generics: generics.clone(),
                             target: Box::new(expr),

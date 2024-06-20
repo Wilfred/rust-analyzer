@@ -3,9 +3,10 @@ use std::{iter, ops::RangeInclusive};
 use ast::make;
 use either::Either;
 use hir::{
-    DescendPreference, HasSource, HirDisplay, ImportPathConfig, InFile, Local, LocalSource,
-    ModuleDef, PathResolution, Semantics, TypeInfo, TypeParam,
+    HasSource, HirDisplay, ImportPathConfig, InFile, Local, LocalSource, ModuleDef, PathResolution,
+    TypeParam,
 };
+use ide_db::semantics::{DescendPreference, Semantics, TypeInfo};
 use ide_db::{
     defs::{Definition, NameRefClass},
     famous_defs::FamousDefs,
@@ -773,10 +774,7 @@ impl FunctionBody {
 impl FunctionBody {
     /// Analyzes a function body, returning the used local variables that are referenced in it as well as
     /// whether it contains an await expression.
-    fn analyze(
-        &self,
-        sema: &Semantics<'_, RootDatabase>,
-    ) -> (FxIndexSet<Local>, Option<ast::SelfParam>) {
+    fn analyze(&self, sema: &Semantics<'_>) -> (FxIndexSet<Local>, Option<ast::SelfParam>) {
         let mut self_param = None;
         let mut res = FxIndexSet::default();
         let mut add_name_if_local = |name_ref: Option<_>| {
@@ -828,10 +826,7 @@ impl FunctionBody {
         (res, self_param)
     }
 
-    fn analyze_container(
-        &self,
-        sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<(ContainerInfo, bool)> {
+    fn analyze_container(&self, sema: &Semantics<'_>) -> Option<(ContainerInfo, bool)> {
         let mut ancestors = self.parent()?.ancestors();
         let infer_expr_opt = |expr| sema.type_of_expr(&expr?).map(TypeInfo::adjusted);
         let mut parent_loop = None;
@@ -1273,10 +1268,7 @@ fn path_element_of_reference(
 }
 
 /// list local variables defined inside `body`
-fn locals_defined_in_body(
-    sema: &Semantics<'_, RootDatabase>,
-    body: &FunctionBody,
-) -> FxIndexSet<Local> {
+fn locals_defined_in_body(sema: &Semantics<'_>, body: &FunctionBody) -> FxIndexSet<Local> {
     // FIXME: this doesn't work well with macros
     //        see https://github.com/rust-lang/rust-analyzer/pull/7535#discussion_r570048550
     let mut res = FxIndexSet::default();

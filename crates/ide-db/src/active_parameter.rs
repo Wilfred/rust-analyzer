@@ -1,13 +1,14 @@
 //! This module provides functionality for querying callable information about a token.
 
 use either::Either;
-use hir::{InFile, Semantics, Type};
+use hir::{InFile, Type};
 use parser::T;
 use syntax::{
     ast::{self, HasArgList, HasName},
     match_ast, AstNode, NodeOrToken, SyntaxToken,
 };
 
+use crate::semantics::Semantics;
 use crate::RootDatabase;
 
 #[derive(Debug)]
@@ -18,7 +19,7 @@ pub struct ActiveParameter {
 
 impl ActiveParameter {
     /// Returns information about the call argument this token is part of.
-    pub fn at_token(sema: &Semantics<'_, RootDatabase>, token: SyntaxToken) -> Option<Self> {
+    pub fn at_token(sema: &Semantics<'_>, token: SyntaxToken) -> Option<Self> {
         let (signature, active_parameter) = callable_for_token(sema, token)?;
 
         let idx = active_parameter?;
@@ -41,7 +42,7 @@ impl ActiveParameter {
 
 /// Returns a [`hir::Callable`] this token is a part of and its argument index of said callable.
 pub fn callable_for_token(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     token: SyntaxToken,
 ) -> Option<(hir::Callable, Option<usize>)> {
     // Find the calling expression and its NameRef
@@ -55,7 +56,7 @@ pub fn callable_for_token(
 }
 
 pub fn callable_for_node(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     calling_node: &ast::CallableExpr,
     token: &SyntaxToken,
 ) -> Option<(hir::Callable, Option<usize>)> {
@@ -76,7 +77,7 @@ pub fn callable_for_node(
 }
 
 pub fn generic_def_for_node(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     generic_arg_list: &ast::GenericArgList,
     token: &SyntaxToken,
 ) -> Option<(hir::GenericDef, usize, bool, Option<hir::Variant>)> {

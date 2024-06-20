@@ -165,7 +165,7 @@ fn generate_edit(
 }
 
 fn existing_deref_impl(
-    sema: &hir::Semantics<'_, RootDatabase>,
+    sema: &ide_db::semantics::Semantics<'_>,
     strukt: &ast::Struct,
 ) -> Option<DerefType> {
     let strukt = sema.to_def(strukt)?;
@@ -195,7 +195,7 @@ enum DerefType {
 impl DerefType {
     fn to_trait(
         &self,
-        sema: &hir::Semantics<'_, RootDatabase>,
+        sema: &ide_db::semantics::Semantics<'_>,
         krate: hir::Crate,
     ) -> Option<hir::Trait> {
         match self {

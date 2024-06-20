@@ -1,7 +1,7 @@
 //! See [`AssistContext`].
 
-use hir::Semantics;
 use ide_db::base_db::{FileId, FileRange};
+use ide_db::semantics::Semantics;
 use ide_db::{label::Label, RootDatabase};
 use syntax::{
     algo::{self, find_node_at_offset, find_node_at_range},
@@ -47,7 +47,7 @@ pub(crate) use ide_db::source_change::{SourceChangeBuilder, TreeMutator};
 /// easier to just compute the edit eagerly :-)
 pub(crate) struct AssistContext<'a> {
     pub(crate) config: &'a AssistConfig,
-    pub(crate) sema: Semantics<'a, RootDatabase>,
+    pub(crate) sema: Semantics<'a>,
     frange: FileRange,
     trimmed_range: TextRange,
     source_file: SourceFile,
@@ -55,7 +55,7 @@ pub(crate) struct AssistContext<'a> {
 
 impl<'a> AssistContext<'a> {
     pub(crate) fn new(
-        sema: Semantics<'a, RootDatabase>,
+        sema: Semantics<'a>,
         config: &'a AssistConfig,
         frange: FileRange,
     ) -> AssistContext<'a> {
