@@ -6,7 +6,9 @@ use crate::{
     resolving::{ResolvedPattern, ResolvedRule, UfcsCallInfo},
     SsrMatches,
 };
-use hir::{ImportPathConfig, Semantics};
+
+use hir::ImportPathConfig;
+use ide_db::semantics::Semantics;
 use ide_db::{base_db::FileRange, FxHashMap};
 use std::{cell::Cell, iter::Peekable};
 use syntax::{

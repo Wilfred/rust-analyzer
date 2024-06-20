@@ -1,4 +1,5 @@
-use hir::{PathResolution, Semantics};
+use hir::PathResolution;
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{
     base_db::FileId,
     defs::Definition,

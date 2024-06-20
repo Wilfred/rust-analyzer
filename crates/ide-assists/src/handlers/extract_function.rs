@@ -3,9 +3,10 @@ use std::{iter, ops::RangeInclusive};
 use ast::make;
 use either::Either;
 use hir::{
-    DescendPreference, HasSource, HirDisplay, ImportPathConfig, InFile, Local, LocalSource,
-    ModuleDef, PathResolution, Semantics, TypeInfo, TypeParam,
+    HasSource, HirDisplay, ImportPathConfig, InFile, Local, LocalSource, ModuleDef, PathResolution,
+    TypeParam,
 };
+use ide_db::semantics::{DescendPreference, Semantics, TypeInfo};
 use ide_db::{
     defs::{Definition, NameRefClass},
     famous_defs::FamousDefs,

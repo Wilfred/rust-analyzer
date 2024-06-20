@@ -109,7 +109,7 @@ pub(crate) fn hover(
     frange @ FileRange { file_id, range }: FileRange,
     config: &HoverConfig,
 ) -> Option<RangeInfo<HoverResult>> {
-    let sema = &hir::Semantics::new(db);
+    let sema = &ide_db::semantics::Semantics::new(db);
     let file = sema.parse(file_id).syntax().clone();
     let mut res = if range.is_empty() {
         hover_simple(sema, FilePosition { file_id, offset: range.start() }, file, config)
@@ -446,7 +446,7 @@ fn show_fn_references_action(db: &RootDatabase, def: Definition) -> Option<Hover
 }
 
 fn runnable_action(
-    sema: &hir::Semantics<'_, RootDatabase>,
+    sema: &ide_db::semantics::Semantics<'_, RootDatabase>,
     def: Definition,
     file_id: FileId,
 ) -> Option<HoverAction> {

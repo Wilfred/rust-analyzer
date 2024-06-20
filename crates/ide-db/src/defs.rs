@@ -11,7 +11,7 @@ use hir::{
     Adt, AsAssocItem, AsExternAssocItem, AssocItem, AttributeTemplate, BuiltinAttr, BuiltinType,
     Const, Crate, DefWithBody, DeriveHelper, DocLinkDef, ExternAssocItem, ExternCrateDecl, Field,
     Function, GenericParam, HasVisibility, HirDisplay, Impl, Label, Local, Macro, Module,
-    ModuleDef, Name, PathResolution, Semantics, Static, StaticLifetime, ToolModule, Trait,
+    ModuleDef, Name, PathResolution, Static, StaticLifetime, ToolModule, Trait,
     TraitAlias, TupleField, TypeAlias, Variant, VariantDef, Visibility,
 };
 use stdx::{format_to, impl_from};
@@ -20,6 +20,7 @@ use syntax::{
     match_ast, SyntaxKind, SyntaxNode, SyntaxToken,
 };
 
+use crate::semantics::Semantics;
 use crate::documentation::{Documentation, HasDocs};
 use crate::famous_defs::FamousDefs;
 use crate::RootDatabase;

@@ -3,7 +3,7 @@
 //! fn f(a: i32, b: i32) -> i32 { a + b }
 //! let _x /* i32 */= f(4, 4);
 //! ```
-use hir::Semantics;
+use ide_db::semantics::Semantics;
 use ide_db::{base_db::FileId, famous_defs::FamousDefs, RootDatabase};
 
 use itertools::Itertools;

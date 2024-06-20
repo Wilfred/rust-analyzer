@@ -1,6 +1,6 @@
 //! See [`AssistContext`].
 
-use hir::Semantics;
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::base_db::{FileId, FileRange};
 use ide_db::{label::Label, RootDatabase};
 use syntax::{

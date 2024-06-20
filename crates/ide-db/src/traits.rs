@@ -1,7 +1,7 @@
 //! Functionality for obtaining data related to traits from the DB.
 
-use crate::{defs::Definition, RootDatabase};
-use hir::{db::HirDatabase, AsAssocItem, Semantics};
+use crate::{defs::Definition, semantics::Semantics, RootDatabase};
+use hir::{db::HirDatabase, AsAssocItem};
 use rustc_hash::FxHashSet;
 use syntax::{ast, AstNode};
 
@@ -113,9 +113,9 @@ fn assoc_item_of_trait(
 
 #[cfg(test)]
 mod tests {
+    use crate::semantics::Semantics;
     use base_db::FilePosition;
     use expect_test::{expect, Expect};
-    use hir::Semantics;
     use syntax::ast::{self, AstNode};
     use test_fixture::ChangeFixture;
 

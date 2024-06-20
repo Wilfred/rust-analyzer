@@ -1,5 +1,6 @@
 use either::Either;
-use hir::{db::ExpandDatabase, HasSource, HirDisplay, HirFileIdExt, Semantics, VariantId};
+use hir::{db::ExpandDatabase, HasSource, HirDisplay, HirFileIdExt, VariantId};
+use ide_db::semantics::Semantics;
 use ide_db::{base_db::FileId, source_change::SourceChange, RootDatabase};
 use syntax::{
     ast::{self, edit::IndentLevel, make},

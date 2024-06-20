@@ -6,9 +6,8 @@ mod tests;
 
 use std::iter;
 
-use hir::{
-    HasAttrs, Local, Name, PathResolution, ScopeDef, Semantics, SemanticsScope, Type, TypeInfo,
-};
+use hir::{HasAttrs, Local, Name, PathResolution, ScopeDef, SemanticsScope, Type};
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{
     base_db::{FilePosition, SourceDatabase},
     famous_defs::FamousDefs,

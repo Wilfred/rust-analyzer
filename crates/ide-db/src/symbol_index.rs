@@ -35,13 +35,14 @@ use fst::{raw::IndexedValue, Automaton, Streamer};
 use hir::{
     db::HirDatabase,
     import_map::{AssocSearchMode, SearchMode},
-    symbols::{FileSymbol, SymbolCollector},
     Crate, Module,
 };
+
 use rayon::prelude::*;
 use rustc_hash::FxHashSet;
 use triomphe::Arc;
 
+use crate::symbols::{FileSymbol, SymbolCollector};
 use crate::RootDatabase;
 
 #[derive(Debug, Clone)]

@@ -287,7 +287,7 @@ fn module_distance_heuristic(db: &dyn HirDatabase, current: &Module, item: &Modu
 mod tests {
     use super::*;
 
-    use hir::Semantics;
+    use ide_db::semantics::Semantics;
     use ide_db::{assists::AssistResolveStrategy, base_db::FileRange, RootDatabase};
     use test_fixture::WithFixture;
 

@@ -1,7 +1,8 @@
-use hir::{DescendPreference, GenericParam};
+use hir::GenericParam;
 use ide_db::{base_db::Upcast, defs::Definition, helpers::pick_best_token, RootDatabase};
 use syntax::{ast, match_ast, AstNode, SyntaxKind::*, SyntaxToken, T};
 
+use crate::semantics::{DescendPreference, Semantics};
 use crate::{FilePosition, NavigationTarget, RangeInfo, TryToNav};
 
 // Feature: Go to Type Definition

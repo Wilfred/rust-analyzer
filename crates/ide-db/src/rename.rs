@@ -24,7 +24,7 @@ use std::fmt;
 
 use base_db::{AnchoredPathBuf, FileId, FileRange};
 use either::Either;
-use hir::{FieldSource, HirFileIdExt, InFile, ModuleSource, Semantics};
+use hir::{FieldSource, HirFileIdExt, InFile, ModuleSource};
 use span::SyntaxContextId;
 use stdx::{never, TupleExt};
 use syntax::{
@@ -33,6 +33,7 @@ use syntax::{
 };
 use text_edit::{TextEdit, TextEditBuilder};
 
+use crate::semantics::Semantics;
 use crate::{
     defs::Definition,
     search::{FileReference, FileReferenceNode},

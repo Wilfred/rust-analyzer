@@ -1,4 +1,4 @@
-use hir::Semantics;
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::RootDatabase;
 use stdx::format_to;
 use syntax::ast::{self, AstNode};

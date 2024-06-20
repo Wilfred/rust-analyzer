@@ -1,7 +1,8 @@
 //! Assorted functions shared by several assists.
 
 pub(crate) use gen_trait_fn_body::gen_trait_fn_body;
-use hir::{db::HirDatabase, HasAttrs as HirHasAttrs, HirDisplay, InFile, Semantics};
+use hir::{db::HirDatabase, HasAttrs as HirHasAttrs, HirDisplay, InFile};
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{
     famous_defs::FamousDefs, path_transform::PathTransform,
     syntax_helpers::insert_whitespace_into_node::insert_ws_into, RootDatabase,

@@ -1,4 +1,5 @@
-use hir::{known, AsAssocItem, Semantics};
+use hir::{known, AsAssocItem};
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{
     famous_defs::FamousDefs,
     syntax_helpers::node_ext::{

@@ -111,7 +111,7 @@ pub use crate::{
     },
     test_explorer::{TestItem, TestItemKind},
 };
-pub use hir::Semantics;
+pub use ide_db::semantics::Semantics;
 pub use ide_assists::{
     Assist, AssistConfig, AssistId, AssistKind, AssistResolveStrategy, SingleResolve,
 };

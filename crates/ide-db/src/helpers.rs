@@ -3,12 +3,13 @@
 use std::collections::VecDeque;
 
 use base_db::{FileId, SourceDatabaseExt};
-use hir::{Crate, DescendPreference, ItemInNs, ModuleDef, Name, Semantics};
+use hir::{Crate, ItemInNs, ModuleDef, Name};
 use syntax::{
     ast::{self, make},
     AstToken, SyntaxKind, SyntaxToken, TokenAtOffset,
 };
 
+use crate::semantics::{DescendPreference, Semantics};
 use crate::{
     defs::{Definition, IdentClass},
     generated, RootDatabase,

@@ -1,4 +1,5 @@
-use hir::{HirDisplay, ModuleDef, PathResolution, Semantics};
+use hir::{HirDisplay, ModuleDef, PathResolution};
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{
     assists::{AssistId, AssistKind},
     defs::Definition,

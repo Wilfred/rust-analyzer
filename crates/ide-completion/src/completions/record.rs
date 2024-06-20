@@ -1,4 +1,5 @@
 //! Complete fields in record literals and patterns.
+use ide_db::semantics::TypeInfo;
 use ide_db::SymbolKind;
 use syntax::{
     ast::{self, Expr},
@@ -87,7 +88,7 @@ pub(crate) fn complete_record_expr_fields(
 pub(crate) fn add_default_update(
     acc: &mut Completions,
     ctx: &CompletionContext<'_>,
-    ty: Option<hir::TypeInfo>,
+    ty: Option<TypeInfo>,
 ) {
     let default_trait = ctx.famous_defs().core_default_Default();
     let impls_default_trait = default_trait

@@ -77,7 +77,8 @@ mod handlers {
 #[cfg(test)]
 mod tests;
 
-use hir::{diagnostics::AnyDiagnostic, InFile, Semantics};
+use hir::{diagnostics::AnyDiagnostic, InFile};
+use ide_db::semantics::Semantics;
 use ide_db::{
     assists::{Assist, AssistId, AssistKind, AssistResolveStrategy},
     base_db::{FileId, FileRange, SourceDatabase},

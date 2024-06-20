@@ -85,7 +85,7 @@ mod tests;
 pub use crate::{errors::SsrError, from_comment::ssr_from_comment, matching::Match};
 
 use crate::{errors::bail, matching::MatchFailureReason};
-use hir::Semantics;
+use ide_db::semantics::Semantics;
 use ide_db::base_db::{FileId, FilePosition, FileRange};
 use nohash_hasher::IntMap;
 use resolving::ResolvedRule;

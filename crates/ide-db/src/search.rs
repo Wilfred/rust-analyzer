@@ -8,8 +8,8 @@ use std::mem;
 
 use base_db::{salsa::Database, FileId, FileRange, SourceDatabase, SourceDatabaseExt};
 use hir::{
-    AsAssocItem, DefWithBody, DescendPreference, HasAttrs, HasSource, HirFileIdExt, InFile,
-    InRealFile, ModuleSource, PathResolution, Semantics, Visibility,
+    AsAssocItem, DefWithBody, HasAttrs, HasSource, HirFileIdExt, InFile, InRealFile, ModuleSource,
+    PathResolution, Visibility,
 };
 use memchr::memmem::Finder;
 use nohash_hasher::IntMap;
@@ -18,6 +18,7 @@ use parser::SyntaxKind;
 use syntax::{ast, match_ast, AstNode, AstToken, SyntaxElement, TextRange, TextSize};
 use triomphe::Arc;
 
+use crate::semantics::{DescendPreference, Semantics};
 use crate::{
     defs::{Definition, NameClass, NameRefClass},
     traits::{as_trait_assoc_def, convert_to_def_in_trait},

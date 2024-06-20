@@ -1,5 +1,5 @@
 use crate::{utils, AssistContext, Assists};
-use hir::DescendPreference;
+use ide_db::semantics::DescendPreference;
 use ide_db::{
     assists::{AssistId, AssistKind},
     syntax_helpers::{

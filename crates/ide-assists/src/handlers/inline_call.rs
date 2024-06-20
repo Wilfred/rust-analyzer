@@ -2,7 +2,8 @@ use std::collections::BTreeSet;
 
 use ast::make;
 use either::Either;
-use hir::{db::HirDatabase, PathResolution, Semantics, TypeInfo};
+use hir::{db::HirDatabase, PathResolution};
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{
     base_db::{FileId, FileRange},
     defs::Definition,

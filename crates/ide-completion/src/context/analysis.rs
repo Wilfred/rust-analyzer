@@ -1,7 +1,8 @@
 //! Module responsible for analyzing the code surrounding the cursor for completion.
 use std::iter;
 
-use hir::{Semantics, Type, TypeInfo, Variant};
+use hir::{Type, Variant};
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{active_parameter::ActiveParameter, RootDatabase};
 use itertools::Either;
 use syntax::{

@@ -4,7 +4,7 @@ mod tests;
 
 use std::cmp::Ordering;
 
-use hir::Semantics;
+use crate::semantics::Semantics;
 use syntax::{
     algo,
     ast::{

@@ -1,9 +1,10 @@
 //! Look up accessible paths for items.
 
+use hir::semantics_scope::SemanticsScope;
 use hir::{
     db::HirDatabase, AsAssocItem, AssocItem, AssocItemContainer, Crate, HasCrate, ImportPathConfig,
-    ItemInNs, ModPath, Module, ModuleDef, Name, PathResolution, PrefixKind, ScopeDef, Semantics,
-    SemanticsScope, Trait, TyFingerprint, Type,
+    ItemInNs, ModPath, Module, ModuleDef, Name, PathResolution, PrefixKind, ScopeDef, Trait,
+    TyFingerprint, Type,
 };
 use itertools::{EitherOrBoth, Itertools};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -15,6 +16,7 @@ use syntax::{
 use crate::{
     helpers::item_name,
     items_locator::{self, AssocSearchMode, DEFAULT_QUERY_SEARCH_LIMIT},
+    semantics::Semantics,
     RootDatabase,
 };
 

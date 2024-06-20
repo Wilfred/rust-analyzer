@@ -1,7 +1,7 @@
 use hir::{
-    Adt, AsAssocItem, HasSource, HirDisplay, HirFileIdExt, Module, PathResolution, Semantics,
-    StructKind, Type, TypeInfo,
+    Adt, AsAssocItem, HasSource, HirDisplay, HirFileIdExt, Module, PathResolution, StructKind, Type,
 };
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{
     base_db::FileId,
     defs::{Definition, NameRefClass},

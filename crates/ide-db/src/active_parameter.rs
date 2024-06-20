@@ -1,13 +1,14 @@
 //! This module provides functionality for querying callable information about a token.
 
 use either::Either;
-use hir::{InFile, Semantics, Type};
+use hir::{InFile, Type};
 use parser::T;
 use syntax::{
     ast::{self, HasArgList, HasName},
     match_ast, AstNode, NodeOrToken, SyntaxToken,
 };
 
+use crate::semantics::Semantics;
 use crate::RootDatabase;
 
 #[derive(Debug)]

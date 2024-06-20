@@ -1,6 +1,6 @@
 //! This module contains functions to suggest names for expressions, functions and other items
 
-use hir::Semantics;
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::{FxHashSet, RootDatabase};
 use itertools::Itertools;
 use stdx::to_lower_snake_case;

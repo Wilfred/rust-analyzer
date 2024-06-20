@@ -1,7 +1,8 @@
 use std::iter::{self, Peekable};
 
 use either::Either;
-use hir::{Adt, Crate, HasAttrs, HasSource, ImportPathConfig, ModuleDef, Semantics};
+use hir::{Adt, Crate, HasAttrs, HasSource, ImportPathConfig, ModuleDef};
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::RootDatabase;
 use ide_db::{famous_defs::FamousDefs, helpers::mod_path_to_ast};
 use itertools::Itertools;

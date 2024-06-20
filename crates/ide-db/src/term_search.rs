@@ -5,7 +5,9 @@ use hir_ty::db::HirDatabase;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::{ModuleDef, ScopeDef, Semantics, SemanticsScope, Type};
+use hir::{ModuleDef, ScopeDef, SemanticsScope, Type};
+
+use crate::semantics::Semantics;
 
 mod expr;
 pub use expr::Expr;

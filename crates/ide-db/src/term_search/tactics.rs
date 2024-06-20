@@ -16,7 +16,7 @@ use hir_ty::TyBuilder;
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
-use crate::{
+use hir::{
     Adt, AssocItem, Enum, GenericDef, GenericParam, HasVisibility, Impl, ModuleDef, ScopeDef, Type,
     TypeParam, Variant,
 };

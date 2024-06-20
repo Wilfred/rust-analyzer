@@ -1,4 +1,4 @@
-use hir::Semantics;
+use ide_db::semantics::{Semantics, TypeInfo};
 use ide_db::RootDatabase;
 use syntax::ast::RangeItem;
 use syntax::ast::{edit::AstNodeEdit, AstNode, HasName, LetStmt, Name, Pat};
