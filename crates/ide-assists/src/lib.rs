@@ -66,7 +66,7 @@ mod assist_context;
 mod tests;
 pub mod utils;
 
-use hir::Semantics;
+use ide_db::semantics::Semantics;
 use ide_db::{base_db::FileRange, RootDatabase};
 use syntax::TextRange;
 

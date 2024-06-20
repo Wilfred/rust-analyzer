@@ -1,9 +1,9 @@
 //! Assorted functions shared by several assists.
 
 pub(crate) use gen_trait_fn_body::gen_trait_fn_body;
-use hir::{db::HirDatabase, HasAttrs as HirHasAttrs, HirDisplay, InFile, Semantics};
+use hir::{db::HirDatabase, HasAttrs as HirHasAttrs, HirDisplay, InFile};
 use ide_db::{
-    famous_defs::FamousDefs, path_transform::PathTransform,
+    famous_defs::FamousDefs, path_transform::PathTransform, semantics::Semantics,
     syntax_helpers::insert_whitespace_into_node::insert_ws_into, RootDatabase,
 };
 use stdx::format_to;
@@ -109,7 +109,7 @@ pub enum DefaultMethods {
 }
 
 pub fn filter_assoc_items(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     items: &[hir::AssocItem],
     default_methods: DefaultMethods,
     ignore_items: IgnoreAssocItems,
@@ -170,7 +170,7 @@ pub fn filter_assoc_items(
 /// then inserts into `impl_`. Returns the modified `impl_` and the first associated item that got
 /// inserted.
 pub fn add_trait_assoc_items_to_impl(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     original_items: &[InFile<ast::AssocItem>],
     trait_: hir::Trait,
     impl_: &ast::Impl,

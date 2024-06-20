@@ -86,7 +86,7 @@ fn dummy_attr_expand(
 ///  #![Foo]
 ///  #![bar::Bar]
 /// ```
-/// which allows fallback path resolution in hir::Semantics to properly identify our derives.
+/// which allows fallback path resolution in ide_db::semantics::Semantics to properly identify our derives.
 /// Since we do not expand the attribute in nameres though, we keep the original item.
 ///
 /// The ideal expansion here would be for the `#[derive]` to re-emit the annotated item and somehow
@@ -95,7 +95,7 @@ fn dummy_attr_expand(
 /// wasting a lot of memory, and it would also require some way to use a path in a way that makes it
 /// always resolve as a derive without nameres recollecting them.
 /// So this hacky approach is a lot more friendly for us, though it does require a bit of support in
-/// [`hir::Semantics`] to make this work.
+/// [`ide_db::semantics::Semantics`] to make this work.
 fn derive_expand(
     db: &dyn ExpandDatabase,
     id: MacroCallId,

@@ -3,8 +3,8 @@
 //! fn g() {
 //! } /* fn g */
 //! ```
-use hir::{HirDisplay, Semantics};
-use ide_db::{base_db::FileRange, RootDatabase};
+use hir::HirDisplay;
+use ide_db::{base_db::FileRange, semantics::Semantics};
 use syntax::{
     ast::{self, AstNode, HasName},
     match_ast, SyntaxKind, SyntaxNode, T,
@@ -14,7 +14,7 @@ use crate::{FileId, InlayHint, InlayHintLabel, InlayHintPosition, InlayHintsConf
 
 pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: &InlayHintsConfig,
     file_id: FileId,
     node: SyntaxNode,

@@ -1,5 +1,6 @@
 use either::Either;
-use hir::{db::ExpandDatabase, HasSource, HirDisplay, HirFileIdExt, Semantics, VariantId};
+use hir::{db::ExpandDatabase, HasSource, HirDisplay, HirFileIdExt, VariantId};
+use ide_db::semantics::Semantics;
 use ide_db::{base_db::FileId, source_change::SourceChange, RootDatabase};
 use syntax::{
     ast::{self, edit::IndentLevel, make},
@@ -50,7 +51,7 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::NoSuchField) -> Option<Vec<Assis
 }
 
 fn missing_record_expr_field_fixes(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     usage_file_id: FileId,
     record_expr_field: &ast::RecordExprField,
 ) -> Option<Vec<Assist>> {

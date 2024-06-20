@@ -111,7 +111,6 @@ pub use crate::{
     },
     test_explorer::{TestItem, TestItemKind},
 };
-pub use hir::Semantics;
 pub use ide_assists::{
     Assist, AssistConfig, AssistId, AssistKind, AssistResolveStrategy, SingleResolve,
 };
@@ -119,6 +118,7 @@ pub use ide_completion::{
     CallableSnippets, CompletionConfig, CompletionItem, CompletionItemKind, CompletionRelevance,
     Snippet, SnippetScope,
 };
+pub use ide_db::semantics::Semantics;
 pub use ide_db::{
     base_db::{
         Cancelled, CrateGraph, CrateId, FileChange, FileId, FilePosition, FileRange, SourceRoot,

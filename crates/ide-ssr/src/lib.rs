@@ -85,8 +85,8 @@ mod tests;
 pub use crate::{errors::SsrError, from_comment::ssr_from_comment, matching::Match};
 
 use crate::{errors::bail, matching::MatchFailureReason};
-use hir::Semantics;
 use ide_db::base_db::{FileId, FilePosition, FileRange};
+use ide_db::semantics::Semantics;
 use nohash_hasher::IntMap;
 use resolving::ResolvedRule;
 use syntax::{ast, AstNode, SyntaxNode, TextRange};
@@ -115,7 +115,7 @@ pub struct SsrMatches {
 /// Searches a crate for pattern matches and possibly replaces them with something else.
 pub struct MatchFinder<'db> {
     /// Our source of information about the user's code.
-    sema: Semantics<'db, ide_db::RootDatabase>,
+    sema: Semantics<'db>,
     rules: Vec<ResolvedRule>,
     resolution_scope: resolving::ResolutionScope<'db>,
     restrict_ranges: Vec<FileRange>,

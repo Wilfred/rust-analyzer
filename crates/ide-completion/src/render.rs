@@ -274,7 +274,7 @@ pub(crate) fn render_resolution_with_import_pat(
 
 pub(crate) fn render_expr(
     ctx: &CompletionContext<'_>,
-    expr: &hir::term_search::Expr,
+    expr: &ide_db::term_search::Expr,
 ) -> Option<Builder> {
     let mut i = 1;
     let mut snippet_formatter = |ty: &hir::Type| {

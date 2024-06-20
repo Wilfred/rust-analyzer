@@ -10,14 +10,13 @@ use pulldown_cmark_to_cmark::{cmark_resume_with_options, Options as CMarkOptions
 use stdx::format_to;
 use url::Url;
 
-use hir::{
-    db::HirDatabase, Adt, AsAssocItem, AssocItem, AssocItemContainer, DescendPreference, HasAttrs,
-};
+use hir::{db::HirDatabase, Adt, AsAssocItem, AssocItem, AssocItemContainer, HasAttrs};
 use ide_db::{
     base_db::{CrateOrigin, LangCrateOrigin, ReleaseChannel, SourceDatabase},
     defs::{Definition, NameClass, NameRefClass},
     documentation::{docs_with_rangemap, Documentation, HasDocs},
     helpers::pick_best_token,
+    semantics::DescendPreference,
     RootDatabase,
 };
 use syntax::{
@@ -227,7 +226,7 @@ pub(crate) fn resolve_doc_path_for_def(
 }
 
 pub(crate) fn doc_attributes(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     node: &SyntaxNode,
 ) -> Option<(hir::AttrsWithOwner, Definition)> {
     match_ast! {
@@ -278,7 +277,7 @@ pub(crate) fn token_as_doc_comment(doc_token: &SyntaxToken) -> Option<DocComment
 impl DocCommentToken {
     pub(crate) fn get_definition_with_descend_at<T>(
         self,
-        sema: &Semantics<'_, RootDatabase>,
+        sema: &Semantics<'_>,
         offset: TextSize,
         // Definition, CommentOwner, range of intra doc link in original file
         mut cb: impl FnMut(Definition, SyntaxNode, TextRange) -> Option<T>,

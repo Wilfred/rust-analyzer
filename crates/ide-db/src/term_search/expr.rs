@@ -8,7 +8,7 @@ use hir_ty::{
 };
 use itertools::Itertools;
 
-use crate::{
+use hir::{
     Adt, AsAssocItem, AssocItemContainer, Const, ConstParam, Field, Function, GenericDef, Local,
     ModuleDef, SemanticsScope, Static, Struct, StructKind, Trait, Type, Variant,
 };
@@ -192,11 +192,11 @@ impl Expr {
                     Some(trait_) => {
                         let trait_name = mod_item_path_str(sema_scope, &ModuleDef::Trait(trait_))?;
                         let target = match self_param.access(db) {
-                            crate::Access::Shared if !target.is_many() => format!("&{target_str}"),
-                            crate::Access::Exclusive if !target.is_many() => {
+                            hir::Access::Shared if !target.is_many() => format!("&{target_str}"),
+                            hir::Access::Exclusive if !target.is_many() => {
                                 format!("&mut {target_str}")
                             }
-                            crate::Access::Owned => target_str,
+                            hir::Access::Owned => target_str,
                             _ => many_formatter(&target.ty(db)),
                         };
                         let res = match args.is_empty() {
@@ -417,10 +417,10 @@ fn container_name(
     cfg: ImportPathConfig,
 ) -> Result<String, DisplaySourceCodeError> {
     let container_name = match container {
-        crate::AssocItemContainer::Trait(trait_) => {
+        hir::AssocItemContainer::Trait(trait_) => {
             mod_item_path_str(sema_scope, &ModuleDef::Trait(trait_), cfg)?
         }
-        crate::AssocItemContainer::Impl(imp) => {
+        hir::AssocItemContainer::Impl(imp) => {
             let self_ty = imp.self_ty(sema_scope.db);
             // Should it be guaranteed that `mod_item_path` always exists?
             match self_ty.as_adt().and_then(|adt| mod_item_path(sema_scope, &adt.into(), cfg)) {

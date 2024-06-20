@@ -1,12 +1,9 @@
-use hir::{
-    db::ExpandDatabase,
-    term_search::{term_search, TermSearchConfig, TermSearchCtx},
-    ClosureStyle, HirDisplay, ImportPathConfig,
-};
+use hir::{db::ExpandDatabase, ClosureStyle, HirDisplay, ImportPathConfig};
 use ide_db::{
     assists::{Assist, AssistId, AssistKind, GroupLabel},
     label::Label,
     source_change::SourceChange,
+    term_search::{term_search, TermSearchConfig, TermSearchCtx},
 };
 use itertools::Itertools;
 use text_edit::TextEdit;

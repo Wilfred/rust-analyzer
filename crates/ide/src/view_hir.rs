@@ -1,5 +1,6 @@
-use hir::{DefWithBody, Semantics};
+use hir::DefWithBody;
 use ide_db::base_db::FilePosition;
+use ide_db::semantics::Semantics;
 use ide_db::RootDatabase;
 use syntax::{algo::ancestors_at_offset, ast, AstNode};
 

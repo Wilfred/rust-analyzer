@@ -1,4 +1,4 @@
-use hir::Semantics;
+use ide_db::semantics::Semantics;
 use ide_db::{
     base_db::{FileId, FileRange},
     defs::Definition,
@@ -99,7 +99,7 @@ pub(crate) fn replace_named_generic_with_impl(
 }
 
 fn find_path_type(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     type_param_name: &Name,
     param: &NameLike,
 ) -> Option<PathType> {
@@ -154,7 +154,7 @@ fn find_path_type(
 
 /// Returns all usage references for the given type parameter definition.
 fn find_usages(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     fn_: &ast::Fn,
     type_param_def: Definition,
     file_id: FileId,

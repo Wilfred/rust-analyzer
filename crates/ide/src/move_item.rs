@@ -1,7 +1,6 @@
 use std::{iter::once, mem};
 
-use hir::Semantics;
-use ide_db::{base_db::FileRange, helpers::pick_best_token, RootDatabase};
+use ide_db::{base_db::FileRange, helpers::pick_best_token, semantics::Semantics, RootDatabase};
 use itertools::Itertools;
 use syntax::{algo, ast, match_ast, AstNode, SyntaxElement, SyntaxKind, SyntaxNode, TextRange};
 use text_edit::{TextEdit, TextEditBuilder};

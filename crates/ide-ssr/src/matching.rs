@@ -6,7 +6,9 @@ use crate::{
     resolving::{ResolvedPattern, ResolvedRule, UfcsCallInfo},
     SsrMatches,
 };
-use hir::{ImportPathConfig, Semantics};
+
+use hir::ImportPathConfig;
+use ide_db::semantics::Semantics;
 use ide_db::{base_db::FileRange, FxHashMap};
 use std::{cell::Cell, iter::Peekable};
 use syntax::{
@@ -89,7 +91,7 @@ pub(crate) fn get_match(
     rule: &ResolvedRule,
     code: &SyntaxNode,
     restrict_range: &Option<FileRange>,
-    sema: &Semantics<'_, ide_db::RootDatabase>,
+    sema: &Semantics<'_>,
 ) -> Result<Match, MatchFailed> {
     record_match_fails_reasons_scope(debug_active, || {
         Matcher::try_match(rule, code, restrict_range, sema)
@@ -98,7 +100,7 @@ pub(crate) fn get_match(
 
 /// Checks if our search pattern matches a particular node of the AST.
 struct Matcher<'db, 'sema> {
-    sema: &'sema Semantics<'db, ide_db::RootDatabase>,
+    sema: &'sema Semantics<'db>,
     /// If any placeholders come from anywhere outside of this range, then the match will be
     /// rejected.
     restrict_range: Option<FileRange>,
@@ -120,7 +122,7 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
         rule: &ResolvedRule,
         code: &SyntaxNode,
         restrict_range: &Option<FileRange>,
-        sema: &'sema Semantics<'db, ide_db::RootDatabase>,
+        sema: &'sema Semantics<'db>,
     ) -> Result<Match, MatchFailed> {
         let match_state = Matcher { sema, restrict_range: *restrict_range, rule };
         // First pass at matching, where we check that node types and idents match.
@@ -655,7 +657,7 @@ impl Match {
     fn render_template_paths(
         &mut self,
         template: &ResolvedPattern,
-        sema: &Semantics<'_, ide_db::RootDatabase>,
+        sema: &Semantics<'_>,
     ) -> Result<(), MatchFailed> {
         let module = sema
             .scope(&self.matched_node)

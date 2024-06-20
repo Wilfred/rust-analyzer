@@ -11,8 +11,8 @@ use hir::{
     Adt, AsAssocItem, AsExternAssocItem, AssocItem, AttributeTemplate, BuiltinAttr, BuiltinType,
     Const, Crate, DefWithBody, DeriveHelper, DocLinkDef, ExternAssocItem, ExternCrateDecl, Field,
     Function, GenericParam, HasVisibility, HirDisplay, Impl, Label, Local, Macro, Module,
-    ModuleDef, Name, PathResolution, Semantics, Static, StaticLifetime, ToolModule, Trait,
-    TraitAlias, TupleField, TypeAlias, Variant, VariantDef, Visibility,
+    ModuleDef, Name, PathResolution, Static, StaticLifetime, ToolModule, Trait, TraitAlias,
+    TupleField, TypeAlias, Variant, VariantDef, Visibility,
 };
 use stdx::{format_to, impl_from};
 use syntax::{
@@ -22,6 +22,7 @@ use syntax::{
 
 use crate::documentation::{Documentation, HasDocs};
 use crate::famous_defs::FamousDefs;
+use crate::semantics::Semantics;
 use crate::RootDatabase;
 
 // FIXME: a more precise name would probably be `Symbol`?
@@ -281,10 +282,7 @@ pub enum IdentClass {
 }
 
 impl IdentClass {
-    pub fn classify_node(
-        sema: &Semantics<'_, RootDatabase>,
-        node: &SyntaxNode,
-    ) -> Option<IdentClass> {
+    pub fn classify_node(sema: &Semantics<'_>, node: &SyntaxNode) -> Option<IdentClass> {
         match_ast! {
             match node {
                 ast::Name(name) => NameClass::classify(sema, &name).map(IdentClass::NameClass),
@@ -304,18 +302,12 @@ impl IdentClass {
         }
     }
 
-    pub fn classify_token(
-        sema: &Semantics<'_, RootDatabase>,
-        token: &SyntaxToken,
-    ) -> Option<IdentClass> {
+    pub fn classify_token(sema: &Semantics<'_>, token: &SyntaxToken) -> Option<IdentClass> {
         let parent = token.parent()?;
         Self::classify_node(sema, &parent)
     }
 
-    pub fn classify_lifetime(
-        sema: &Semantics<'_, RootDatabase>,
-        lifetime: &ast::Lifetime,
-    ) -> Option<IdentClass> {
+    pub fn classify_lifetime(sema: &Semantics<'_>, lifetime: &ast::Lifetime) -> Option<IdentClass> {
         NameRefClass::classify_lifetime(sema, lifetime)
             .map(IdentClass::NameRefClass)
             .or_else(|| NameClass::classify_lifetime(sema, lifetime).map(IdentClass::NameClass))
@@ -412,7 +404,7 @@ impl NameClass {
         Some(res)
     }
 
-    pub fn classify(sema: &Semantics<'_, RootDatabase>, name: &ast::Name) -> Option<NameClass> {
+    pub fn classify(sema: &Semantics<'_>, name: &ast::Name) -> Option<NameClass> {
         let _p = tracing::info_span!("NameClass::classify").entered();
 
         let parent = name.syntax().parent()?;
@@ -432,10 +424,7 @@ impl NameClass {
         };
         return Some(NameClass::Definition(definition));
 
-        fn classify_item(
-            sema: &Semantics<'_, RootDatabase>,
-            item: ast::Item,
-        ) -> Option<Definition> {
+        fn classify_item(sema: &Semantics<'_>, item: ast::Item) -> Option<Definition> {
             let definition = match item {
                 ast::Item::MacroRules(it) => {
                     Definition::Macro(sema.to_def(&ast::Macro::MacroRules(it))?)
@@ -464,10 +453,7 @@ impl NameClass {
             Some(definition)
         }
 
-        fn classify_ident_pat(
-            sema: &Semantics<'_, RootDatabase>,
-            ident_pat: ast::IdentPat,
-        ) -> Option<NameClass> {
+        fn classify_ident_pat(sema: &Semantics<'_>, ident_pat: ast::IdentPat) -> Option<NameClass> {
             if let Some(def) = sema.resolve_bind_pat_to_const(&ident_pat) {
                 return Some(NameClass::ConstReference(Definition::from(def)));
             }
@@ -487,10 +473,7 @@ impl NameClass {
             Some(NameClass::Definition(Definition::Local(local)))
         }
 
-        fn classify_rename(
-            sema: &Semantics<'_, RootDatabase>,
-            rename: ast::Rename,
-        ) -> Option<Definition> {
+        fn classify_rename(sema: &Semantics<'_>, rename: ast::Rename) -> Option<Definition> {
             if let Some(use_tree) = rename.syntax().parent().and_then(ast::UseTree::cast) {
                 let path = use_tree.path()?;
                 sema.resolve_path(&path).map(Definition::from)
@@ -501,10 +484,7 @@ impl NameClass {
         }
     }
 
-    pub fn classify_lifetime(
-        sema: &Semantics<'_, RootDatabase>,
-        lifetime: &ast::Lifetime,
-    ) -> Option<NameClass> {
+    pub fn classify_lifetime(sema: &Semantics<'_>, lifetime: &ast::Lifetime) -> Option<NameClass> {
         let _p = tracing::info_span!("NameClass::classify_lifetime", ?lifetime).entered();
         let parent = lifetime.syntax().parent()?;
 
@@ -530,37 +510,31 @@ pub enum OperatorClass {
 
 impl OperatorClass {
     pub fn classify_await(
-        sema: &Semantics<'_, RootDatabase>,
+        sema: &Semantics<'_>,
         await_expr: &ast::AwaitExpr,
     ) -> Option<OperatorClass> {
         sema.resolve_await_to_poll(await_expr).map(OperatorClass::Await)
     }
 
     pub fn classify_prefix(
-        sema: &Semantics<'_, RootDatabase>,
+        sema: &Semantics<'_>,
         prefix_expr: &ast::PrefixExpr,
     ) -> Option<OperatorClass> {
         sema.resolve_prefix_expr(prefix_expr).map(OperatorClass::Prefix)
     }
 
-    pub fn classify_try(
-        sema: &Semantics<'_, RootDatabase>,
-        try_expr: &ast::TryExpr,
-    ) -> Option<OperatorClass> {
+    pub fn classify_try(sema: &Semantics<'_>, try_expr: &ast::TryExpr) -> Option<OperatorClass> {
         sema.resolve_try_expr(try_expr).map(OperatorClass::Try)
     }
 
     pub fn classify_index(
-        sema: &Semantics<'_, RootDatabase>,
+        sema: &Semantics<'_>,
         index_expr: &ast::IndexExpr,
     ) -> Option<OperatorClass> {
         sema.resolve_index_expr(index_expr).map(OperatorClass::Index)
     }
 
-    pub fn classify_bin(
-        sema: &Semantics<'_, RootDatabase>,
-        bin_expr: &ast::BinExpr,
-    ) -> Option<OperatorClass> {
+    pub fn classify_bin(sema: &Semantics<'_>, bin_expr: &ast::BinExpr) -> Option<OperatorClass> {
         sema.resolve_bin_expr(bin_expr).map(OperatorClass::Bin)
     }
 }
@@ -592,10 +566,7 @@ pub enum NameRefClass {
 impl NameRefClass {
     // Note: we don't have unit-tests for this rather important function.
     // It is primarily exercised via goto definition tests in `ide`.
-    pub fn classify(
-        sema: &Semantics<'_, RootDatabase>,
-        name_ref: &ast::NameRef,
-    ) -> Option<NameRefClass> {
+    pub fn classify(sema: &Semantics<'_>, name_ref: &ast::NameRef) -> Option<NameRefClass> {
         let _p = tracing::info_span!("NameRefClass::classify", ?name_ref).entered();
 
         let parent = name_ref.syntax().parent()?;
@@ -692,7 +663,7 @@ impl NameRefClass {
     }
 
     pub fn classify_lifetime(
-        sema: &Semantics<'_, RootDatabase>,
+        sema: &Semantics<'_>,
         lifetime: &ast::Lifetime,
     ) -> Option<NameRefClass> {
         let _p = tracing::info_span!("NameRefClass::classify_lifetime", ?lifetime).entered();

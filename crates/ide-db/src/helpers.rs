@@ -3,12 +3,13 @@
 use std::collections::VecDeque;
 
 use base_db::{FileId, SourceDatabaseExt};
-use hir::{Crate, DescendPreference, ItemInNs, ModuleDef, Name, Semantics};
+use hir::{Crate, ItemInNs, ModuleDef, Name};
 use syntax::{
     ast::{self, make},
     AstToken, SyntaxKind, SyntaxToken, TokenAtOffset,
 };
 
+use crate::semantics::{DescendPreference, Semantics};
 use crate::{
     defs::{Definition, IdentClass},
     generated, RootDatabase,
@@ -58,11 +59,7 @@ pub fn mod_path_to_ast(path: &hir::ModPath) -> ast::Path {
 }
 
 /// Iterates all `ModuleDef`s and `Impl` blocks of the given file.
-pub fn visit_file_defs(
-    sema: &Semantics<'_, RootDatabase>,
-    file_id: FileId,
-    cb: &mut dyn FnMut(Definition),
-) {
+pub fn visit_file_defs(sema: &Semantics<'_>, file_id: FileId, cb: &mut dyn FnMut(Definition)) {
     let db = sema.db;
     let module = match sema.file_to_module_def(file_id) {
         Some(it) => it,
@@ -113,10 +110,7 @@ pub fn is_editable_crate(krate: Crate, db: &RootDatabase) -> bool {
     !db.source_root(source_root_id).is_library
 }
 
-pub fn get_definition(
-    sema: &Semantics<'_, RootDatabase>,
-    token: SyntaxToken,
-) -> Option<Definition> {
+pub fn get_definition(sema: &Semantics<'_>, token: SyntaxToken) -> Option<Definition> {
     for token in sema.descend_into_macros(DescendPreference::None, token) {
         let def = IdentClass::classify_token(sema, &token).map(IdentClass::definitions_no_ops);
         if let Some(&[x]) = def.as_deref() {

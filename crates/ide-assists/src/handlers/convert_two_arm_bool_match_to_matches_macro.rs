@@ -1,4 +1,4 @@
-use hir::Semantics;
+use ide_db::semantics::Semantics;
 use ide_db::RootDatabase;
 use stdx::format_to;
 use syntax::ast::{self, AstNode};
@@ -96,10 +96,7 @@ enum ArmBodyExpression {
     Expression(ast::Expr),
 }
 
-fn is_bool_literal_expr(
-    sema: &Semantics<'_, RootDatabase>,
-    expr: &ast::Expr,
-) -> Option<ArmBodyExpression> {
+fn is_bool_literal_expr(sema: &Semantics<'_>, expr: &ast::Expr) -> Option<ArmBodyExpression> {
     if let ast::Expr::Literal(lit) = expr {
         if let ast::LiteralKind::Bool(b) = lit.kind() {
             return Some(ArmBodyExpression::Literal(b));

@@ -1,8 +1,9 @@
-use hir::{DescendPreference, GenericParam};
+use hir::GenericParam;
 use ide_db::{base_db::Upcast, defs::Definition, helpers::pick_best_token, RootDatabase};
 use syntax::{ast, match_ast, AstNode, SyntaxKind::*, SyntaxToken, T};
 
 use crate::{FilePosition, NavigationTarget, RangeInfo, TryToNav};
+use ide_db::semantics::{DescendPreference, Semantics};
 
 // Feature: Go to Type Definition
 //
@@ -19,7 +20,7 @@ pub(crate) fn goto_type_definition(
     db: &RootDatabase,
     FilePosition { file_id, offset }: FilePosition,
 ) -> Option<RangeInfo<Vec<NavigationTarget>>> {
-    let sema = hir::Semantics::new(db);
+    let sema = Semantics::new(db);
 
     let file: ast::SourceFile = sema.parse(file_id);
     let token: SyntaxToken =

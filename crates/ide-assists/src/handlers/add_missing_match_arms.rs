@@ -1,7 +1,8 @@
 use std::iter::{self, Peekable};
 
 use either::Either;
-use hir::{Adt, Crate, HasAttrs, HasSource, ImportPathConfig, ModuleDef, Semantics};
+use hir::{Adt, Crate, HasAttrs, HasSource, ImportPathConfig, ModuleDef};
+use ide_db::semantics::Semantics;
 use ide_db::RootDatabase;
 use ide_db::{famous_defs::FamousDefs, helpers::mod_path_to_ast};
 use itertools::Itertools;
@@ -398,17 +399,14 @@ impl ExtendedEnum {
     }
 }
 
-fn resolve_enum_def(sema: &Semantics<'_, RootDatabase>, expr: &ast::Expr) -> Option<ExtendedEnum> {
+fn resolve_enum_def(sema: &Semantics<'_>, expr: &ast::Expr) -> Option<ExtendedEnum> {
     sema.type_of_expr(expr)?.adjusted().autoderef(sema.db).find_map(|ty| match ty.as_adt() {
         Some(Adt::Enum(e)) => Some(ExtendedEnum::Enum(e)),
         _ => ty.is_bool().then_some(ExtendedEnum::Bool),
     })
 }
 
-fn resolve_tuple_of_enum_def(
-    sema: &Semantics<'_, RootDatabase>,
-    expr: &ast::Expr,
-) -> Option<Vec<ExtendedEnum>> {
+fn resolve_tuple_of_enum_def(sema: &Semantics<'_>, expr: &ast::Expr) -> Option<Vec<ExtendedEnum>> {
     sema.type_of_expr(expr)?
         .adjusted()
         .tuple_fields(sema.db)
@@ -429,7 +427,7 @@ fn resolve_tuple_of_enum_def(
 }
 
 fn resolve_array_of_enum_def(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     expr: &ast::Expr,
 ) -> Option<(ExtendedEnum, usize)> {
     sema.type_of_expr(expr)?.adjusted().as_array(sema.db).and_then(|(ty, len)| {

@@ -4,7 +4,7 @@ mod tests;
 
 use std::cmp::Ordering;
 
-use hir::Semantics;
+use crate::semantics::Semantics;
 use syntax::{
     algo,
     ast::{
@@ -97,10 +97,7 @@ impl ImportScope {
 
     /// Determines the containing syntax node in which to insert a `use` statement affecting `position`.
     /// Returns the original source node inside attributes.
-    pub fn find_insert_use_container(
-        position: &SyntaxNode,
-        sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<Self> {
+    pub fn find_insert_use_container(position: &SyntaxNode, sema: &Semantics<'_>) -> Option<Self> {
         fn contains_cfg_attr(attrs: &dyn HasAttrs) -> bool {
             attrs
                 .attrs()

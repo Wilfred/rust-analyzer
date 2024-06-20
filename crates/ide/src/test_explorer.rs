@@ -1,8 +1,9 @@
 //! Discovers tests
 
-use hir::{Crate, Module, ModuleDef, Semantics};
+use hir::{Crate, Module, ModuleDef};
 use ide_db::{
     base_db::{CrateGraph, CrateId, FileId, SourceDatabase},
+    semantics::Semantics,
     RootDatabase,
 };
 use syntax::TextRange;
@@ -131,7 +132,7 @@ pub(crate) fn discover_tests_in_file(db: &RootDatabase, file_id: FileId) -> Vec<
 }
 
 fn find_module_id_and_test_parents(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     module: Module,
 ) -> Option<(Vec<TestItem>, String)> {
     let Some(parent) = module.parent(sema.db) else {

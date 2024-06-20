@@ -87,6 +87,7 @@
 
 use base_db::FileId;
 use either::Either;
+use hir::InFile;
 use hir_def::{
     child_by_source::ChildBySource,
     dyn_map::{
@@ -110,7 +111,8 @@ use syntax::{
     AstNode, AstPtr, SyntaxNode,
 };
 
-use crate::{db::HirDatabase, InFile};
+use hir::HirDatabase;
+// use crate::InFile;
 
 #[derive(Default)]
 pub(super) struct SourceToDefCache {
@@ -263,7 +265,7 @@ impl SourceToDefCtx<'_, '_> {
         let src = src.cloned().map(ast::Pat::from);
         let pat_id = source_map.node_pat(src.as_ref())?;
         // the pattern could resolve to a constant, verify that that is not the case
-        if let crate::Pat::Bind { id, .. } = body[pat_id] {
+        if let hir_def::hir::Pat::Bind { id, .. } = body[pat_id] {
             Some((container, id))
         } else {
             None

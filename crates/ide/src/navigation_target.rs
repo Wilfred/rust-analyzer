@@ -5,13 +5,14 @@ use std::fmt;
 use arrayvec::ArrayVec;
 use either::Either;
 use hir::{
-    db::ExpandDatabase, symbols::FileSymbol, AssocItem, FieldSource, HasContainer, HasSource,
-    HirDisplay, HirFileId, InFile, LocalSource, ModuleSource,
+    db::ExpandDatabase, AssocItem, FieldSource, HasContainer, HasSource, HirDisplay, HirFileId,
+    InFile, LocalSource, ModuleSource,
 };
 use ide_db::{
     base_db::{FileId, FileRange},
     defs::Definition,
     documentation::{Documentation, HasDocs},
+    symbols::FileSymbol,
     RootDatabase, SymbolKind,
 };
 use stdx::never;

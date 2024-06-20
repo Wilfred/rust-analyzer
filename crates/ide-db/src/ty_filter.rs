@@ -4,7 +4,7 @@
 
 use std::iter;
 
-use hir::Semantics;
+use crate::semantics::Semantics;
 use syntax::ast::{self, make, Pat};
 
 use crate::RootDatabase;
@@ -20,7 +20,7 @@ impl TryEnum {
     const ALL: [TryEnum; 2] = [TryEnum::Option, TryEnum::Result];
 
     /// Returns `Some(..)` if the provided type is an enum that implements `std::ops::Try`.
-    pub fn from_ty(sema: &Semantics<'_, RootDatabase>, ty: &hir::Type) -> Option<TryEnum> {
+    pub fn from_ty(sema: &Semantics<'_>, ty: &hir::Type) -> Option<TryEnum> {
         let enum_ = match ty.as_adt() {
             Some(hir::Adt::Enum(it)) => it,
             _ => return None,

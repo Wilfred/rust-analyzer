@@ -1,7 +1,8 @@
 //! This diagnostic provides an assist for creating a struct definition from a JSON
 //! example.
 
-use hir::{ImportPathConfig, PathResolution, Semantics};
+use hir::{ImportPathConfig, PathResolution};
+use ide_db::semantics::Semantics;
 use ide_db::{
     base_db::{FileId, FileRange},
     helpers::mod_path_to_ast,
@@ -100,7 +101,7 @@ impl State {
 }
 
 pub(crate) fn json_in_items(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     acc: &mut Vec<Diagnostic>,
     file_id: FileId,
     node: &SyntaxNode,

@@ -3,11 +3,12 @@
 
 use core::fmt;
 
-use hir::{Adt, AsAssocItem, AssocItemContainer, Crate, DescendPreference, MacroKind, Semantics};
+use hir::{Adt, AsAssocItem, AssocItemContainer, Crate, MacroKind};
 use ide_db::{
     base_db::{CrateOrigin, FilePosition, LangCrateOrigin},
     defs::{Definition, IdentClass},
     helpers::pick_best_token,
+    semantics::{DescendPreference, Semantics},
     RootDatabase,
 };
 use itertools::Itertools;

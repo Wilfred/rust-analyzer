@@ -2,11 +2,11 @@
 
 use std::iter;
 
-use hir::{DescendPreference, Semantics};
 use ide_db::{
     defs::{Definition, NameClass, NameRefClass},
     helpers::pick_best_token,
     search::FileReference,
+    semantics::{DescendPreference, Semantics},
     FxIndexMap, RootDatabase,
 };
 use syntax::{ast, AstNode, SyntaxKind::IDENT, TextRange};

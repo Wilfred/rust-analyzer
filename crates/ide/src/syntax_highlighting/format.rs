@@ -1,6 +1,7 @@
 //! Syntax highlighting for format macro strings.
 use ide_db::{
     defs::Definition,
+    semantics::Semantics,
     syntax_helpers::format_string::{is_format_string, lex_format_specifiers, FormatSpecifier},
     SymbolKind,
 };
@@ -13,7 +14,7 @@ use crate::{
 
 pub(super) fn highlight_format_string(
     stack: &mut Highlights,
-    sema: &hir::Semantics<'_, ide_db::RootDatabase>,
+    sema: &Semantics<'_>,
     krate: hir::Crate,
     string: &ast::String,
     expanded_string: &ast::String,

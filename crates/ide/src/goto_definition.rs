@@ -4,11 +4,12 @@ use crate::{
     doc_links::token_as_doc_comment, navigation_target::ToNav, FilePosition, NavigationTarget,
     RangeInfo, TryToNav,
 };
-use hir::{AsAssocItem, AssocItem, DescendPreference, MacroFileIdExt, ModuleDef, Semantics};
+use hir::{AsAssocItem, AssocItem, MacroFileIdExt, ModuleDef};
 use ide_db::{
     base_db::{AnchoredPath, FileId, FileLoader},
     defs::{Definition, IdentClass},
     helpers::pick_best_token,
+    semantics::{DescendPreference, Semantics},
     RootDatabase,
 };
 use itertools::Itertools;
@@ -112,7 +113,7 @@ pub(crate) fn goto_definition(
 }
 
 fn try_lookup_include_path(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     token: ast::String,
     file_id: FileId,
 ) -> Option<NavigationTarget> {
@@ -141,7 +142,7 @@ fn try_lookup_include_path(
 }
 
 fn try_lookup_macro_def_in_macro_use(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     token: SyntaxToken,
 ) -> Option<NavigationTarget> {
     let extern_crate = token.parent()?.ancestors().find_map(ast::ExternCrate::cast)?;
@@ -169,7 +170,7 @@ fn try_lookup_macro_def_in_macro_use(
 /// impl A for S { type a = i32; } // <-- on this associate type, will get the location of a in the trait
 /// ```
 fn try_filter_trait_item_definition(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     def: &Definition,
 ) -> Option<Vec<NavigationTarget>> {
     let db = sema.db;

@@ -3,9 +3,10 @@
 //! The main reason for this module to exist is the fact that project's items and dependencies' items
 //! are located in different caches, with different APIs.
 use either::Either;
-use hir::{import_map, Crate, ItemInNs, Semantics};
+use hir::{import_map, Crate, ItemInNs};
 use limit::Limit;
 
+use crate::semantics::Semantics;
 use crate::{imports::import_assets::NameToImport, symbol_index, RootDatabase};
 
 /// A value to use, when uncertain which limit to pick.
@@ -15,7 +16,7 @@ pub use import_map::AssocSearchMode;
 
 /// Searches for importable items with the given name in the crate and its dependencies.
 pub fn items_with_name<'a>(
-    sema: &'a Semantics<'_, RootDatabase>,
+    sema: &'a Semantics<'_>,
     krate: Crate,
     name: NameToImport,
     assoc_item_search: AssocSearchMode,
@@ -67,7 +68,7 @@ pub fn items_with_name<'a>(
 }
 
 fn find_items<'a>(
-    sema: &'a Semantics<'_, RootDatabase>,
+    sema: &'a Semantics<'_>,
     krate: Crate,
     local_query: symbol_index::Query,
     external_query: import_map::Query,

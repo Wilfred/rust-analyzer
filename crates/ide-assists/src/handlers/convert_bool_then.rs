@@ -1,4 +1,5 @@
-use hir::{known, AsAssocItem, Semantics};
+use hir::{known, AsAssocItem};
+use ide_db::semantics::Semantics;
 use ide_db::{
     famous_defs::FamousDefs,
     syntax_helpers::node_ext::{
@@ -217,7 +218,7 @@ pub(crate) fn convert_bool_then_to_if(acc: &mut Assists, ctx: &AssistContext<'_>
 }
 
 fn option_variants(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     expr: &SyntaxNode,
 ) -> Option<(hir::Variant, hir::Variant)> {
     let fam = FamousDefs(sema, sema.scope(expr)?.krate());
@@ -234,11 +235,7 @@ fn option_variants(
 
 /// Traverses the expression checking if it contains `return` or `?` expressions or if any tail is not a `Some(expr)` expression.
 /// If any of these conditions are met it is impossible to rewrite this as a `bool::then` call.
-fn is_invalid_body(
-    sema: &Semantics<'_, RootDatabase>,
-    some_variant: hir::Variant,
-    expr: &ast::Expr,
-) -> bool {
+fn is_invalid_body(sema: &Semantics<'_>, some_variant: hir::Variant, expr: &ast::Expr) -> bool {
     let mut invalid = false;
     preorder_expr(expr, &mut |e| {
         invalid |=
@@ -270,7 +267,7 @@ fn is_invalid_body(
 }
 
 fn block_is_none_variant(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     block: &ast::BlockExpr,
     none_variant: hir::Variant,
 ) -> bool {

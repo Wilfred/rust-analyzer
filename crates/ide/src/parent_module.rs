@@ -1,6 +1,7 @@
-use hir::{db::DefDatabase, Semantics};
+use hir::db::DefDatabase;
 use ide_db::{
     base_db::{CrateId, FileId, FileLoader, FilePosition},
+    semantics::Semantics,
     RootDatabase,
 };
 use itertools::Itertools;

@@ -1,11 +1,11 @@
 use std::iter;
 
 use expect_test::{expect, Expect};
-use hir::Semantics;
 use ide_db::{
     base_db::{FilePosition, FileRange},
     defs::Definition,
     documentation::{Documentation, HasDocs},
+    semantics::Semantics,
     RootDatabase,
 };
 use itertools::Itertools;
@@ -75,10 +75,7 @@ fn check_doc_links(ra_fixture: &str) {
     assert_eq!(expected, actual);
 }
 
-fn def_under_cursor(
-    sema: &Semantics<'_, RootDatabase>,
-    position: &FilePosition,
-) -> (Definition, Documentation) {
+fn def_under_cursor(sema: &Semantics<'_>, position: &FilePosition) -> (Definition, Documentation) {
     let (docs, def) = sema
         .parse(position.file_id)
         .syntax()
@@ -94,7 +91,7 @@ fn def_under_cursor(
 }
 
 fn node_to_def(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     node: &SyntaxNode,
 ) -> Option<Option<(Option<Documentation>, Definition)>> {
     Some(match_ast! {

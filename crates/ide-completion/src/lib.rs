@@ -20,7 +20,9 @@ use ide_db::{
         import_assets::NameToImport,
         insert_use::{self, ImportScope},
     },
-    items_locator, RootDatabase,
+    items_locator,
+    semantics::Semantics,
+    RootDatabase,
 };
 use syntax::algo;
 use text_edit::TextEdit;
@@ -239,7 +241,7 @@ pub fn resolve_completion_edits(
     imports: impl IntoIterator<Item = (String, String)>,
 ) -> Option<Vec<TextEdit>> {
     let _p = tracing::info_span!("resolve_completion_edits").entered();
-    let sema = hir::Semantics::new(db);
+    let sema = Semantics::new(db);
 
     let original_file = sema.parse(file_id);
     let original_token =

@@ -6,9 +6,9 @@ use std::{
 use either::Either;
 use hir::{
     known, ClosureStyle, HasVisibility, HirDisplay, HirDisplayError, HirWrite, ModuleDef,
-    ModuleDefId, Semantics,
+    ModuleDefId,
 };
-use ide_db::{base_db::FileRange, famous_defs::FamousDefs, RootDatabase};
+use ide_db::{base_db::FileRange, famous_defs::FamousDefs, semantics::Semantics, RootDatabase};
 use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 use stdx::never;
@@ -363,7 +363,7 @@ fn label_of_ty(
     ty: &hir::Type,
 ) -> Option<InlayHintLabel> {
     fn rec(
-        sema: &Semantics<'_, RootDatabase>,
+        sema: &Semantics<'_>,
         famous_defs: &FamousDefs<'_, '_>,
         mut max_length: Option<usize>,
         ty: &hir::Type,
@@ -422,7 +422,7 @@ fn label_of_ty(
 }
 
 fn ty_to_text_edit(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     node_for_hint: &SyntaxNode,
     ty: &hir::Type,
     offset_to_insert: TextSize,
@@ -596,7 +596,7 @@ fn hints(
 
 /// Checks if the type is an Iterator from std::iter and returns the iterator trait and the item type of the concrete iterator.
 fn hint_iterator(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     famous_defs: &FamousDefs<'_, '_>,
     ty: &hir::Type,
 ) -> Option<(hir::Trait, hir::TypeAlias, hir::Type)> {

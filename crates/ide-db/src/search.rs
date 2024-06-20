@@ -8,8 +8,8 @@ use std::mem;
 
 use base_db::{salsa::Database, FileId, FileRange, SourceDatabase, SourceDatabaseExt};
 use hir::{
-    AsAssocItem, DefWithBody, DescendPreference, HasAttrs, HasSource, HirFileIdExt, InFile,
-    InRealFile, ModuleSource, PathResolution, Semantics, Visibility,
+    AsAssocItem, DefWithBody, HasAttrs, HasSource, HirFileIdExt, InFile, InRealFile, ModuleSource,
+    PathResolution, Visibility,
 };
 use memchr::memmem::Finder;
 use nohash_hasher::IntMap;
@@ -18,6 +18,7 @@ use parser::SyntaxKind;
 use syntax::{ast, match_ast, AstNode, AstToken, SyntaxElement, TextRange, TextSize};
 use triomphe::Arc;
 
+use crate::semantics::{DescendPreference, Semantics};
 use crate::{
     defs::{Definition, NameClass, NameRefClass},
     traits::{as_trait_assoc_def, convert_to_def_in_trait},
@@ -369,7 +370,7 @@ impl Definition {
         }
     }
 
-    pub fn usages<'a>(self, sema: &'a Semantics<'_, RootDatabase>) -> FindUsages<'a> {
+    pub fn usages<'a>(self, sema: &'a Semantics<'_>) -> FindUsages<'a> {
         FindUsages {
             def: self,
             assoc_item_container: self.as_assoc_item(sema.db).map(|a| a.container(sema.db)),
@@ -384,7 +385,7 @@ impl Definition {
 #[derive(Clone)]
 pub struct FindUsages<'a> {
     def: Definition,
-    sema: &'a Semantics<'a, RootDatabase>,
+    sema: &'a Semantics<'a>,
     scope: Option<&'a SearchScope>,
     /// The container of our definition should it be an assoc item
     assoc_item_container: Option<hir::AssocItemContainer>,
@@ -496,7 +497,7 @@ impl<'a> FindUsages<'a> {
 
         // for<'a> |scope: &'a SearchScope| -> impl Iterator<Item = (Arc<String>, FileId, TextRange)> + 'a { ... }
         fn scope_files<'a>(
-            sema: &'a Semantics<'_, RootDatabase>,
+            sema: &'a Semantics<'_>,
             scope: &'a SearchScope,
         ) -> impl Iterator<Item = (Arc<str>, FileId, TextRange)> + 'a {
             scope.entries.iter().map(|(&file_id, &search_range)| {
@@ -863,7 +864,7 @@ impl<'a> FindUsages<'a> {
     }
 }
 
-fn def_to_ty(sema: &Semantics<'_, RootDatabase>, def: &Definition) -> Option<hir::Type> {
+fn def_to_ty(sema: &Semantics<'_>, def: &Definition) -> Option<hir::Type> {
     match def {
         Definition::Adt(adt) => Some(adt.ty(sema.db)),
         Definition::TypeAlias(it) => Some(it.ty(sema.db)),
@@ -874,11 +875,7 @@ fn def_to_ty(sema: &Semantics<'_, RootDatabase>, def: &Definition) -> Option<hir
 }
 
 impl ReferenceCategory {
-    fn new(
-        sema: &Semantics<'_, RootDatabase>,
-        def: &Definition,
-        r: &ast::NameRef,
-    ) -> ReferenceCategory {
+    fn new(sema: &Semantics<'_>, def: &Definition, r: &ast::NameRef) -> ReferenceCategory {
         let mut result = ReferenceCategory::empty();
         if is_name_ref_in_test(sema, r) {
             result |= ReferenceCategory::TEST;
@@ -925,7 +922,7 @@ fn is_name_ref_in_import(name_ref: &ast::NameRef) -> bool {
         .map_or(false, |it| it.kind() == SyntaxKind::USE_TREE)
 }
 
-fn is_name_ref_in_test(sema: &Semantics<'_, RootDatabase>, name_ref: &ast::NameRef) -> bool {
+fn is_name_ref_in_test(sema: &Semantics<'_>, name_ref: &ast::NameRef) -> bool {
     name_ref.syntax().ancestors().any(|node| match ast::Fn::cast(node) {
         Some(it) => sema.to_def(&it).map_or(false, |func| func.is_test(sema.db)),
         None => false,

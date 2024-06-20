@@ -24,7 +24,7 @@ use std::fmt;
 
 use base_db::{AnchoredPathBuf, FileId, FileRange};
 use either::Either;
-use hir::{FieldSource, HirFileIdExt, InFile, ModuleSource, Semantics};
+use hir::{FieldSource, HirFileIdExt, InFile, ModuleSource};
 use span::SyntaxContextId;
 use stdx::{never, TupleExt};
 use syntax::{
@@ -33,6 +33,7 @@ use syntax::{
 };
 use text_edit::{TextEdit, TextEditBuilder};
 
+use crate::semantics::Semantics;
 use crate::{
     defs::Definition,
     search::{FileReference, FileReferenceNode},
@@ -67,11 +68,7 @@ macro_rules! _bail {
 pub use _bail as bail;
 
 impl Definition {
-    pub fn rename(
-        &self,
-        sema: &Semantics<'_, RootDatabase>,
-        new_name: &str,
-    ) -> Result<SourceChange> {
+    pub fn rename(&self, sema: &Semantics<'_>, new_name: &str) -> Result<SourceChange> {
         // self.krate() returns None if
         // self is a built-in attr, built-in type or tool module.
         // it is not allowed for these defs to be renamed.
@@ -105,7 +102,7 @@ impl Definition {
     /// `Definition`. Note that builtin types can't be
     /// renamed and extern crate names will report its range, though a rename will introduce
     /// an alias instead.
-    pub fn range_for_rename(self, sema: &Semantics<'_, RootDatabase>) -> Option<FileRange> {
+    pub fn range_for_rename(self, sema: &Semantics<'_>) -> Option<FileRange> {
         let syn_ctx_is_root = |(range, ctx): (_, SyntaxContextId)| ctx.is_root().then_some(range);
         let res = match self {
             Definition::Macro(mac) => {
@@ -207,10 +204,7 @@ impl Definition {
         };
         return res;
 
-        fn name_range<D>(
-            def: D,
-            sema: &Semantics<'_, RootDatabase>,
-        ) -> Option<(FileRange, SyntaxContextId)>
+        fn name_range<D>(def: D, sema: &Semantics<'_>) -> Option<(FileRange, SyntaxContextId)>
         where
             D: hir::HasSource,
             D::Ast: ast::HasName,
@@ -222,11 +216,7 @@ impl Definition {
     }
 }
 
-fn rename_mod(
-    sema: &Semantics<'_, RootDatabase>,
-    module: hir::Module,
-    new_name: &str,
-) -> Result<SourceChange> {
+fn rename_mod(sema: &Semantics<'_>, module: hir::Module, new_name: &str) -> Result<SourceChange> {
     if IdentifierKind::classify(new_name)? != IdentifierKind::Ident {
         bail!("Invalid name `{0}`: cannot rename module to {0}", new_name);
     }
@@ -308,11 +298,7 @@ fn rename_mod(
     Ok(source_change)
 }
 
-fn rename_reference(
-    sema: &Semantics<'_, RootDatabase>,
-    def: Definition,
-    new_name: &str,
-) -> Result<SourceChange> {
+fn rename_reference(sema: &Semantics<'_>, def: Definition, new_name: &str) -> Result<SourceChange> {
     let ident_kind = IdentifierKind::classify(new_name)?;
 
     if matches!(
@@ -512,7 +498,7 @@ fn source_edit_from_name_ref(
 }
 
 fn source_edit_from_def(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     def: Definition,
     new_name: &str,
 ) -> Result<(FileId, TextEdit)> {

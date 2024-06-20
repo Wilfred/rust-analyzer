@@ -8,9 +8,9 @@
 use hir::{
     db::{DefDatabase as _, HirDatabase as _},
     mir::{MirSpan, TerminatorKind},
-    ChalkTyInterner, DefWithBody, Semantics,
+    ChalkTyInterner, DefWithBody,
 };
-use ide_db::{base_db::FileRange, RootDatabase};
+use ide_db::{base_db::FileRange, semantics::Semantics};
 
 use syntax::{
     ast::{self, AstNode},
@@ -21,7 +21,7 @@ use crate::{InlayHint, InlayHintLabel, InlayHintPosition, InlayHintsConfig, Inla
 
 pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: &InlayHintsConfig,
     def: &ast::Fn,
 ) -> Option<()> {

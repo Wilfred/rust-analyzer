@@ -196,7 +196,7 @@ fn add_assist(
 }
 
 fn impl_def_from_trait(
-    sema: &hir::Semantics<'_, ide_db::RootDatabase>,
+    sema: &ide_db::semantics::Semantics<'_>,
     adt: &ast::Adt,
     annotated_name: &ast::Name,
     trait_: Option<hir::Trait>,

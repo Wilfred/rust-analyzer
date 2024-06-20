@@ -1,6 +1,7 @@
-use hir::{AsAssocItem, DescendPreference, Semantics};
+use hir::AsAssocItem;
 use ide_db::{
     defs::{Definition, NameClass, NameRefClass},
+    semantics::{DescendPreference, Semantics},
     RootDatabase,
 };
 use syntax::{ast, match_ast, AstNode, SyntaxKind::*, T};

@@ -1,13 +1,14 @@
 //! This module provides `StaticIndex` which is used for powering
 //! read-only code browsers and emitting LSIF
 
-use hir::{db::HirDatabase, Crate, HirFileIdExt, Module, Semantics};
+use hir::{db::HirDatabase, Crate, HirFileIdExt, Module};
 use ide_db::{
     base_db::{FileId, FileRange, SourceDatabaseExt},
     defs::Definition,
     documentation::Documentation,
     famous_defs::FamousDefs,
     helpers::get_definition,
+    semantics::Semantics,
     FxHashMap, FxHashSet, RootDatabase,
 };
 use syntax::{AstNode, SyntaxKind::*, SyntaxNode, TextRange, T};
@@ -107,7 +108,7 @@ fn all_modules(db: &dyn HirDatabase) -> Vec<Module> {
 }
 
 fn documentation_for_definition(
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     def: Definition,
     scope_node: &SyntaxNode,
 ) -> Option<Documentation> {
@@ -154,7 +155,7 @@ impl StaticIndex<'_> {
             )
             .unwrap();
         // hovers
-        let sema = hir::Semantics::new(self.db);
+        let sema = Semantics::new(self.db);
         let tokens_or_nodes = sema.parse(file_id).syntax().clone();
         let tokens = tokens_or_nodes.descendants_with_tokens().filter_map(|it| match it {
             syntax::NodeOrToken::Node(_) => None,

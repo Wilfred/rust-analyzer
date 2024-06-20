@@ -67,7 +67,7 @@ impl Default for {enum_name} {{
 }
 
 fn existing_default_impl(
-    sema: &'_ hir::Semantics<'_, RootDatabase>,
+    sema: &'_ ide_db::semantics::Semantics<'_>,
     variant: &ast::Variant,
 ) -> Option<()> {
     let variant = sema.to_def(variant)?;

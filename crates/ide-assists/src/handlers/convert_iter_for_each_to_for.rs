@@ -142,7 +142,7 @@ pub(crate) fn convert_for_loop_with_for_each(
 /// returning an Iterator called iter or iter_mut (depending on the type of reference) then return
 /// the expression behind the reference and the method name
 fn is_ref_and_impls_iter_method(
-    sema: &hir::Semantics<'_, ide_db::RootDatabase>,
+    sema: &ide_db::semantics::Semantics<'_>,
     iterable: &ast::Expr,
 ) -> Option<(ast::Expr, hir::Name)> {
     let ref_expr = match iterable {
@@ -172,7 +172,7 @@ fn is_ref_and_impls_iter_method(
 }
 
 /// Whether iterable implements core::Iterator
-fn impls_core_iter(sema: &hir::Semantics<'_, ide_db::RootDatabase>, iterable: &ast::Expr) -> bool {
+fn impls_core_iter(sema: &ide_db::semantics::Semantics<'_>, iterable: &ast::Expr) -> bool {
     (|| {
         let it_typ = sema.type_of_expr(iterable)?.adjusted();
 

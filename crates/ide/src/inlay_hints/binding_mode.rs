@@ -2,8 +2,8 @@
 //! ```no_run
 //! let /* & */ (/* ref */ x,) = &(0,);
 //! ```
-use hir::{Mutability, Semantics};
-use ide_db::RootDatabase;
+use hir::Mutability;
+use ide_db::semantics::Semantics;
 
 use syntax::ast::{self, AstNode};
 
@@ -11,7 +11,7 @@ use crate::{InlayHint, InlayHintPosition, InlayHintsConfig, InlayKind};
 
 pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'_>,
     config: &InlayHintsConfig,
     pat: &ast::Pat,
 ) -> Option<()> {
