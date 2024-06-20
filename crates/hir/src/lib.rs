@@ -51,7 +51,7 @@ use hir_def::{
     nameres::{self, diagnostics::DefDiagnostic},
     path::ImportAlias,
     per_ns::PerNs,
-    resolver::{HasResolver, Resolver},
+    resolver::{HasResolver, Resolver, TypeNs},
     AssocItemId, AssocItemLoc, AttrDefId, CallableDefId, ConstId, ConstParamId, CrateRootModuleId,
     DefWithBodyId, EnumId, EnumVariantId, ExternCrateId, FunctionId, GenericDefId, GenericParamId,
     HasModule, ImplId, InTypeConstId, ItemContainerId, LifetimeParamId, LocalFieldId, Lookup,
@@ -94,8 +94,7 @@ pub use crate::{
     diagnostics::*,
     has_source::HasSource,
     semantics::{
-        DescendPreference, PathResolution, Semantics, SemanticsImpl, SemanticsScope, TypeInfo,
-        VisibleTraits,
+        DescendPreference, Semantics, SemanticsImpl, SemanticsScope, TypeInfo, VisibleTraits,
     },
 };
 pub use hir_ty::method_resolution::TyFingerprint;
@@ -5402,4 +5401,51 @@ pub enum DocLinkDef {
     ModuleDef(ModuleDef),
     Field(Field),
     SelfType(Trait),
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PathResolution {
+    /// An item
+    Def(ModuleDef),
+    /// A local binding (only value namespace)
+    Local(Local),
+    /// A type parameter
+    TypeParam(TypeParam),
+    /// A const parameter
+    ConstParam(ConstParam),
+    SelfType(Impl),
+    BuiltinAttr(BuiltinAttr),
+    ToolModule(ToolModule),
+    DeriveHelper(DeriveHelper),
+}
+
+impl PathResolution {
+    pub(crate) fn in_type_ns(&self) -> Option<TypeNs> {
+        match self {
+            PathResolution::Def(ModuleDef::Adt(adt)) => Some(TypeNs::AdtId((*adt).into())),
+            PathResolution::Def(ModuleDef::BuiltinType(builtin)) => {
+                Some(TypeNs::BuiltinType((*builtin).into()))
+            }
+            PathResolution::Def(
+                ModuleDef::Const(_)
+                | ModuleDef::Variant(_)
+                | ModuleDef::Macro(_)
+                | ModuleDef::Function(_)
+                | ModuleDef::Module(_)
+                | ModuleDef::Static(_)
+                | ModuleDef::Trait(_)
+                | ModuleDef::TraitAlias(_),
+            ) => None,
+            PathResolution::Def(ModuleDef::TypeAlias(alias)) => {
+                Some(TypeNs::TypeAliasId((*alias).into()))
+            }
+            PathResolution::BuiltinAttr(_)
+            | PathResolution::ToolModule(_)
+            | PathResolution::Local(_)
+            | PathResolution::DeriveHelper(_)
+            | PathResolution::ConstParam(_) => None,
+            PathResolution::TypeParam(param) => Some(TypeNs::GenericParam((*param).into())),
+            PathResolution::SelfType(impl_def) => Some(TypeNs::SelfType((*impl_def).into())),
+        }
+    }
 }
