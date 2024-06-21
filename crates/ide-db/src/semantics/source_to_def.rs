@@ -85,9 +85,9 @@
 //! active crate for a given position, and then provide an API to resolve all
 //! syntax nodes against this specific crate.
 
-use base_db::FileId;
+use base_db::{salsa::ParallelDatabase as _, FileId, FileLoader as _, Upcast as _};
 use either::Either;
-use hir::InFile;
+use hir::{db::DefDatabase as _, InFile};
 use hir_def::{
     child_by_source::ChildBySource,
     dyn_map::{
@@ -112,6 +112,8 @@ use syntax::{
 };
 
 use hir::HirDatabase;
+
+use crate::RootDatabase;
 // use crate::InFile;
 
 #[derive(Default)]
@@ -122,7 +124,7 @@ pub(super) struct SourceToDefCache {
 }
 
 pub(super) struct SourceToDefCtx<'db, 'cache> {
-    pub(super) db: &'db dyn HirDatabase,
+    pub(super) db: &'db RootDatabase,
     pub(super) cache: &'cache mut SourceToDefCache,
 }
 
@@ -131,6 +133,7 @@ impl SourceToDefCtx<'_, '_> {
         let _p = tracing::info_span!("SourceToDefCtx::file_to_def").entered();
         self.cache.file_to_def_cache.entry(file).or_insert_with(|| {
             let mut mods = SmallVec::new();
+
             for &crate_id in self.db.relevant_crates(file).iter() {
                 // Note: `mod` declarations in block modules cannot be supported here
                 let crate_def_map = self.db.crate_def_map(crate_id);
