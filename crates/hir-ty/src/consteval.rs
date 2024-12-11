@@ -11,7 +11,7 @@ use hir_def::{
     ConstBlockLoc, EnumVariantId, GeneralConstId, HasModule as _, StaticId,
 };
 use hir_expand::Lookup;
-use stdx::never;
+use stdx::{never, IsNoneOr};
 use triomphe::Arc;
 
 use crate::{
@@ -306,7 +306,7 @@ pub(crate) fn const_eval_discriminant_variant(
     }
 
     let repr = db.enum_data(loc.parent).repr;
-    let is_signed = repr.and_then(|repr| repr.int).is_none_or(|int| int.is_signed());
+    let is_signed = IsNoneOr::is_none_or(repr.and_then(|repr| repr.int), |int| int.is_signed());
 
     let mir_body = db.monomorphized_mir_body(
         def,
