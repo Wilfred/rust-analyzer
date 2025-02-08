@@ -849,6 +849,29 @@ fn main() {
 }
 
 #[test]
+fn doctest_destructure_enum() {
+    check_doc_test(
+        "destructure_enum",
+        r#####"
+//- minicore: option
+fn main() {
+    let t = Some(1);
+    $0t;
+}
+"#####,
+        r#####"
+fn main() {
+    let t = Some(1);
+    match t {
+        Some(_) => {}
+        None => {}
+    };
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_destructure_struct_binding() {
     check_doc_test(
         "destructure_struct_binding",
