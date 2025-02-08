@@ -41,6 +41,7 @@ pub enum Command {
     Rename,
 }
 
+/// Corresponds to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeActionKind
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssistKind {
     // FIXME: does the None variant make sense? Probably not.

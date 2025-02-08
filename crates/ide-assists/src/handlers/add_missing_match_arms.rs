@@ -445,6 +445,7 @@ fn resolve_array_of_enum_def(
     })
 }
 
+// copy this
 fn build_pat(
     ctx: &AssistContext<'_>,
     module: hir::Module,
