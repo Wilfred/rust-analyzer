@@ -175,7 +175,6 @@ pub(crate) struct GlobalState {
     pub(crate) fetch_build_data_queue: OpQueue<(), FetchBuildDataResponse>,
     pub(crate) fetch_proc_macros_queue: OpQueue<(ChangeWithProcMacros, Vec<ProcMacroPaths>), bool>,
     pub(crate) prime_caches_queue: OpQueue,
-    pub(crate) discover_workspace_queue: OpQueue,
 
     /// A deferred task queue.
     ///
@@ -312,7 +311,6 @@ impl GlobalState {
             fetch_proc_macros_queue: OpQueue::default(),
 
             prime_caches_queue: OpQueue::default(),
-            discover_workspace_queue: OpQueue::default(),
 
             deferred_task_queue: task_queue,
             incomplete_crate_graph: false,

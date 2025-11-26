@@ -97,9 +97,11 @@ impl fmt::Display for Event {
     }
 }
 
+/// See docs on [`task_pool::TaskQueue`].
 #[derive(Debug)]
 pub(crate) enum QueuedTask {
     CheckIfIndexed(lsp_types::Url),
+    DiscoverLinkedProjects(DiscoverProjectParam),
     CheckProcMacroSources(Vec<FileId>),
 }
 
@@ -806,33 +808,11 @@ impl GlobalState {
                 self.report_progress("Fetching", state, msg, None, None);
             }
             Task::DiscoverLinkedProjects(arg) => {
-                if let Some(cfg) = self.config.discover_workspace_config()
-                    && !self.discover_workspace_queue.op_in_progress()
-                {
-                    // the clone is unfortunately necessary to avoid a borrowck error when
-                    // `self.report_progress` is called later
-                    let title = &cfg.progress_label.clone();
-                    let command = cfg.command.clone();
-                    let discover = DiscoverCommand::new(self.discover_sender.clone(), command);
-
-                    self.report_progress(title, Progress::Begin, None, None, None);
-                    self.discover_workspace_queue
-                        .request_op("Discovering workspace".to_owned(), ());
-                    let _ = self.discover_workspace_queue.should_start_op();
-
-                    let arg = match arg {
-                        DiscoverProjectParam::Buildfile(it) => DiscoverArgument::Buildfile(it),
-                        DiscoverProjectParam::Path(it) => DiscoverArgument::Path(it),
-                    };
-
-                    let handle = discover.spawn(
-                        arg,
-                        &std::env::current_dir()
-                            .expect("Failed to get cwd during project discovery"),
-                    );
-                    self.discover_handle = Some(handle.unwrap_or_else(|e| {
-                        panic!("Failed to spawn project discovery command: {e}")
-                    }));
+                if self.config.discover_workspace_config().is_some() {
+                    self.deferred_task_queue
+                        .sender
+                        .send(QueuedTask::DiscoverLinkedProjects(arg))
+                        .unwrap();
                 }
             }
             Task::FetchBuildData(progress) => {
@@ -986,26 +966,53 @@ impl GlobalState {
             QueuedTask::CheckIfIndexed(uri) => {
                 let snap = self.snapshot();
 
-                self.task_pool.handle.spawn_with_sender(ThreadIntent::Worker, move |sender| {
-                    let _p = tracing::info_span!("GlobalState::check_if_indexed").entered();
-                    tracing::debug!(?uri, "handling uri");
-                    let Some(id) = from_proto::file_id(&snap, &uri).expect("unable to get FileId")
-                    else {
-                        return;
-                    };
-                    if let Ok(crates) = &snap.analysis.crates_for(id) {
-                        if crates.is_empty() {
-                            if snap.config.discover_workspace_config().is_some() {
-                                let path =
-                                    from_proto::abs_path(&uri).expect("Unable to get AbsPath");
-                                let arg = DiscoverProjectParam::Path(path);
-                                sender.send(Task::DiscoverLinkedProjects(arg)).unwrap();
-                            }
-                        } else {
-                            tracing::debug!(?uri, "is indexed");
+                let _p = tracing::info_span!("GlobalState::check_if_indexed").entered();
+                tracing::debug!(?uri, "handling uri");
+
+                let Some(id) = from_proto::file_id(&snap, &uri).expect("unable to get FileId")
+                else {
+                    return;
+                };
+                if let Ok(crates) = &snap.analysis.crates_for(id) {
+                    if crates.is_empty() {
+                        if snap.config.discover_workspace_config().is_some() {
+                            let path = from_proto::abs_path(&uri).expect("Unable to get AbsPath");
+                            let arg = DiscoverProjectParam::Path(path);
+
+                            self.deferred_task_queue
+                                .sender
+                                .send(QueuedTask::DiscoverLinkedProjects(arg))
+                                .unwrap();
                         }
+                    } else {
+                        tracing::debug!(?uri, "is indexed");
                     }
-                });
+                }
+            }
+            QueuedTask::DiscoverLinkedProjects(arg) => {
+                if let Some(cfg) = self.config.discover_workspace_config() {
+                    // the clone is unfortunately necessary to avoid a borrowck error when
+                    // `self.report_progress` is called later
+                    let title = &cfg.progress_label.clone();
+                    let command = cfg.command.clone();
+                    let discover = DiscoverCommand::new(self.discover_sender.clone(), command);
+
+                    self.report_progress(title, Progress::Begin, None, None, None);
+
+                    let arg = match arg {
+                        DiscoverProjectParam::Buildfile(it) => DiscoverArgument::Buildfile(it),
+                        DiscoverProjectParam::Path(it) => DiscoverArgument::Path(it),
+                    };
+
+                    let handle = discover.spawn(
+                        arg,
+                        &std::env::current_dir()
+                            .expect("Failed to get cwd during project discovery"),
+                    );
+                    self.discover_handle = Some(handle.unwrap_or_else(|e| {
+                        panic!("Failed to spawn project discovery command: {e}")
+                    }));
+                }
             }
             QueuedTask::CheckProcMacroSources(modified_rust_files) => {
                 let analysis = AssertUnwindSafe(self.snapshot().analysis);
@@ -1038,7 +1045,6 @@ impl GlobalState {
             DiscoverProjectMessage::Finished { project, buildfile } => {
                 self.discover_handle = None;
                 self.report_progress(&title, Progress::End, None, None, None);
-                self.discover_workspace_queue.op_completed(());
 
                 let mut config = Config::clone(&*self.config);
                 config.add_discovered_project_from_command(project, buildfile);
@@ -1050,7 +1056,6 @@ impl GlobalState {
             DiscoverProjectMessage::Error { error, source } => {
                 self.discover_handle = None;
                 let message = format!("Project discovery failed: {error}");
-                self.discover_workspace_queue.op_completed(());
                 self.show_and_log_error(message.clone(), source);
                 self.report_progress(&title, Progress::End, Some(message), None, None)
             }
