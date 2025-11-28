@@ -74,7 +74,7 @@ impl GlobalState {
             && !self.fetch_workspaces_queue.op_in_progress()
             && !self.fetch_build_data_queue.op_in_progress()
             && !self.fetch_proc_macros_queue.op_in_progress()
-            && !self.discover_workspace_queue.op_in_progress()
+            && !self.discover_handles.read().is_empty()
             && self.vfs_progress_config_version >= self.vfs_config_version
     }
 
@@ -297,7 +297,8 @@ impl GlobalState {
                 .collect();
             let cargo_config = self.config.cargo(None);
             let discover_command = self.config.discover_workspace_config().cloned();
-            let is_quiescent = !(self.discover_workspace_queue.op_in_progress()
+            let discover_in_progress = !self.discover_handles.read().is_empty();
+            let is_quiescent = !(discover_in_progress
                 || self.vfs_progress_config_version < self.vfs_config_version
                 || !self.vfs_done);
 
