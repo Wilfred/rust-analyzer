@@ -13,7 +13,7 @@
 //! project is currently loading and we don't have a full project model, we
 //! still want to respond to various  requests.
 // FIXME: This is a mess that needs some untangling work
-use std::{iter, mem};
+use std::{iter, mem, sync::atomic::Ordering};
 
 use hir::{ChangeWithProcMacros, ProcMacrosBuilder, db::DefDatabase};
 use ide_db::{
@@ -74,7 +74,7 @@ impl GlobalState {
             && !self.fetch_workspaces_queue.op_in_progress()
             && !self.fetch_build_data_queue.op_in_progress()
             && !self.fetch_proc_macros_queue.op_in_progress()
-            && !self.discover_workspace_queue.op_in_progress()
+            && self.discover_jobs_active.load(Ordering::SeqCst) == 0
             && self.vfs_progress_config_version >= self.vfs_config_version
     }
 
@@ -297,7 +297,7 @@ impl GlobalState {
                 .collect();
             let cargo_config = self.config.cargo(None);
             let discover_command = self.config.discover_workspace_config().cloned();
-            let is_quiescent = !(self.discover_workspace_queue.op_in_progress()
+            let is_quiescent = !(self.discover_jobs_active.load(Ordering::SeqCst) > 0
                 || self.vfs_progress_config_version < self.vfs_config_version
                 || !self.vfs_done);
 
