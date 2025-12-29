@@ -2562,3 +2562,29 @@ fn main() {
         "#,
     );
 }
+
+#[test]
+fn generic_predicates_for_param_supertrait_cycle() {
+    // Test for cycle in `generic_predicates_for_param` when resolving associated types
+    // through supertraits. This used to crash because `supertrait_def_ids` called
+    // `explicit_super_predicates_of` which is not allowed in `generic_predicates_for_param`.
+    check_no_mismatches(
+        r#"
+trait VCipherSuite {}
+
+trait CipherSuite
+where
+    OprfHash<Self>: Hash,
+{
+}
+
+type Bar<CS: CipherSuite> = <CS::Baz as VCipherSuite>::Hash;
+
+type OprfHash<CS: CipherSuite> = <CS::Baz as VCipherSuite>::Hash;
+
+impl<CS: CipherSuite> Foo<CS> {
+    fn seal() {}
+}
+        "#,
+    );
+}
