@@ -8,7 +8,9 @@ use std::{
 use crossbeam_channel::{Receiver, after, select};
 use itertools::Itertools;
 use lsp_server::{Connection, Message, Notification, Request};
-use lsp_types::{TextDocumentIdentifier, Url, notification::Exit, request::Shutdown};
+use lsp_types::{
+    PublishDiagnosticsParams, TextDocumentIdentifier, Url, notification::Exit, request::Shutdown,
+};
 use parking_lot::{Mutex, MutexGuard};
 use paths::{Utf8Path, Utf8PathBuf};
 use rust_analyzer::{
@@ -407,6 +409,80 @@ impl Server {
         .unwrap_or_else(|Timeout| panic!("timeout while waiting for ws to load"));
         self
     }
+    pub(crate) fn wait_for_diagnostics(&self) -> PublishDiagnosticsParams {
+        for msg in self.messages.borrow().iter() {
+            if let Message::Notification(n) = msg {
+                if n.method == "textDocument/publishDiagnostics" {
+                    let params: PublishDiagnosticsParams =
+                        serde_json::from_value(n.params.clone()).unwrap();
+                    if !params.diagnostics.is_empty() {
+                        return params;
+                    }
+                }
+            }
+        }
+        loop {
+            let msg = self
+                .recv()
+                .unwrap_or_else(|Timeout| panic!("timeout while waiting for diagnostics"))
+                .expect("connection closed while waiting for diagnostics");
+            if let Message::Notification(n) = &msg {
+                if n.method == "textDocument/publishDiagnostics" {
+                    let params: PublishDiagnosticsParams =
+                        serde_json::from_value(n.params.clone()).unwrap();
+                    if !params.diagnostics.is_empty() {
+                        return params;
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn wait_for_diagnostics_cleared(&self) {
+        loop {
+            let msg = self
+                .recv()
+                .unwrap_or_else(|Timeout| panic!("timeout while waiting for diagnostics to clear"))
+                .expect("connection closed while waiting for diagnostics to clear");
+            if let Message::Notification(n) = &msg {
+                if n.method == "textDocument/publishDiagnostics" {
+                    let params: PublishDiagnosticsParams =
+                        serde_json::from_value(n.params.clone()).unwrap();
+                    if params.diagnostics.is_empty() {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Receive diagnostic notifications until `pred` returns true,
+    /// returning every `PublishDiagnosticsParams` seen (including the
+    /// one that matched).
+    pub(crate) fn collect_diagnostics_until(
+        &self,
+        pred: impl Fn(&PublishDiagnosticsParams) -> bool,
+    ) -> Vec<PublishDiagnosticsParams> {
+        let mut all = Vec::new();
+        loop {
+            let msg = self
+                .recv()
+                .unwrap_or_else(|Timeout| panic!("timeout while collecting diagnostics"))
+                .expect("connection closed while collecting diagnostics");
+            if let Message::Notification(n) = &msg {
+                if n.method == "textDocument/publishDiagnostics" {
+                    let params: PublishDiagnosticsParams =
+                        serde_json::from_value(n.params.clone()).unwrap();
+                    let done = pred(&params);
+                    all.push(params);
+                    if done {
+                        return all;
+                    }
+                }
+            }
+        }
+    }
+
     fn wait_for_message_cond(
         &self,
         n: usize,

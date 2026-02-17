@@ -18,6 +18,7 @@ mod cli;
 mod ratoml;
 mod support;
 mod testdir;
+mod flycheck;
 
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
