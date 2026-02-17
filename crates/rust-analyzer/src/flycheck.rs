@@ -559,17 +559,28 @@ impl FlycheckActor {
                     self.cancel_check_process();
                 }
                 Event::RequestStateChange(StateChange::Restart {
-                    generation,
-                    scope,
-                    saved_file,
-                    target,
+                    mut generation,
+                    mut scope,
+                    mut saved_file,
+                    mut target,
                 }) => {
                     // Cancel the previously spawned process
                     self.cancel_check_process();
                     while let Ok(restart) = inbox.recv_timeout(Duration::from_millis(50)) {
                         // restart chained with a stop, so just cancel
-                        if let StateChange::Cancel = restart {
-                            continue 'event;
+                        match restart {
+                            StateChange::Cancel => continue 'event,
+                            StateChange::Restart {
+                                generation: g,
+                                scope: s,
+                                saved_file: sf,
+                                target: t,
+                            } => {
+                                generation = g;
+                                scope = s;
+                                saved_file = sf;
+                                target = t;
+                            }
                         }
                     }
 
