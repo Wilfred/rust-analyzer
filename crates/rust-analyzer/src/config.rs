@@ -2457,15 +2457,20 @@ impl Config {
     }
 
     pub fn rustfmt(&self, source_root_id: Option<SourceRootId>) -> RustfmtConfig {
+        let enable_range_formatting =
+            *self.rustfmt_rangeFormatting_enable(source_root_id);
         match &self.rustfmt_overrideCommand(source_root_id) {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let command = args.remove(0);
+                if enable_range_formatting {
+                    args.push("--unstable-features".to_owned());
+                }
                 RustfmtConfig::CustomCommand { command, args }
             }
             Some(_) | None => RustfmtConfig::Rustfmt {
                 extra_args: self.rustfmt_extraArgs(source_root_id).clone(),
-                enable_range_formatting: *self.rustfmt_rangeFormatting_enable(source_root_id),
+                enable_range_formatting,
             },
         }
     }
