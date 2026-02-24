@@ -475,6 +475,7 @@ impl<'a> Substitutions<'a> {
                     cmd.arg(arg);
                     continue;
                 } else {
+                    tracing::debug!(arg = LABEL_INLINE, label = self.label, "No label found to substitute");
                     return None;
                 }
             }
@@ -485,6 +486,7 @@ impl<'a> Substitutions<'a> {
                     cmd.arg(arg);
                     continue;
                 } else {
+                    tracing::debug!(arg = SAVED_FILE_INLINE, saved_file = self.saved_file, "No saved file to substitute");
                     return None;
                 }
             }
@@ -494,6 +496,7 @@ impl<'a> Substitutions<'a> {
                     cmd.arg(saved_file);
                     continue;
                 } else {
+                    tracing::debug!(arg = SAVED_FILE_PLACEHOLDER_DOLLAR, saved_file = self.saved_file, "No saved file to substitute");
                     return None;
                 }
             }
