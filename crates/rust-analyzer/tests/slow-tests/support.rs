@@ -289,6 +289,9 @@ pub(crate) fn project(fixture: &str) -> Server {
 pub(crate) struct Server {
     req_id: Cell<i32>,
     messages: RefCell<Vec<Message>>,
+    /// Tracks how many messages in `self.messages` have already been scanned by
+    /// `wait_for_diagnostics`, so subsequent calls skip stale results.
+    messages_offset: Cell<usize>,
     _thread: stdx::thread::JoinHandle,
     client: Connection,
     /// XXX: remove the tempdir last
@@ -312,6 +315,7 @@ impl Server {
             req_id: Cell::new(1),
             dir,
             messages: Default::default(),
+            messages_offset: Cell::new(0),
             client,
             _thread,
             _config_dir_guard: config_dir_guard,
@@ -410,17 +414,23 @@ impl Server {
         self
     }
     pub(crate) fn wait_for_diagnostics(&self) -> PublishDiagnosticsParams {
-        for msg in self.messages.borrow().iter() {
+        let offset = self.messages_offset.get();
+        let messages = self.messages.borrow();
+        for (i, msg) in messages.iter().enumerate().skip(offset) {
             if let Message::Notification(n) = msg
                 && n.method == "textDocument/publishDiagnostics"
             {
                 let params: PublishDiagnosticsParams =
                     serde_json::from_value(n.params.clone()).unwrap();
                 if !params.diagnostics.is_empty() {
+                    self.messages_offset.set(i + 1);
                     return params;
                 }
             }
         }
+        let len = messages.len();
+        drop(messages);
+        self.messages_offset.set(len);
         loop {
             let msg = self
                 .recv()
@@ -432,6 +442,7 @@ impl Server {
                 let params: PublishDiagnosticsParams =
                     serde_json::from_value(n.params.clone()).unwrap();
                 if !params.diagnostics.is_empty() {
+                    self.messages_offset.set(self.messages.borrow().len());
                     return params;
                 }
             }
