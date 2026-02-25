@@ -219,6 +219,86 @@ fn main() {{}}
 }
 
 #[test]
+fn test_flycheck_diagnostics_for_json_project_multiple_workspaces() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let tmp_dir = TestDir::new();
+    let path = tmp_dir.path();
+
+    let project1 = json!({
+        "crates": [{
+            "root_module": path.join("ws1/src/main.rs"),
+            "deps": [],
+            "edition": "2021",
+            "cfg": [],
+            "build": {
+                "label": "//ws1:main",
+                "build_file": path.join("ws1/BUILD"),
+                "target_kind": "bin",
+            },
+        }]
+    });
+
+    let project2 = json!({
+        "crates": [{
+            "root_module": path.join("ws2/src/main.rs"),
+            "deps": [],
+            "edition": "2021",
+            "cfg": [],
+            "build": {
+                "label": "//ws2:main",
+                "build_file": path.join("ws2/BUILD"),
+                "target_kind": "bin",
+            },
+        }]
+    });
+
+    let code = format!(
+        r#"
+//- /ws1/.rust-project.json
+{project1}
+
+//- /ws1/src/main.rs
+fn main() {{}}
+
+//- /ws2/.rust-project.json
+{project2}
+
+//- /ws2/src/main.rs
+fn main() {{}}
+"#,
+    );
+
+    let server = Project::with_fixture(&code)
+        .tmp_dir(tmp_dir)
+        .root("ws1")
+        .root("ws2")
+        .with_config(serde_json::json!({
+            "checkOnSave": true,
+            "check": {
+                "overrideCommand": ["rustc", "--error-format=json", "$saved_file"],
+            }
+        }))
+        .server()
+        .wait_until_workspace_is_loaded();
+
+    // Introduce an unused variable in ws1.
+    server.write_file_and_save(
+        "ws1/src/main.rs",
+        "fn main() {\n    let x = 1;\n}\n".to_owned(),
+    );
+
+    let diag1 = server.wait_for_diagnostics();
+    assert!(
+        diag1.diagnostics.iter().any(|d| d.message.contains("unused variable")),
+        "expected unused variable diagnostic from ws1, got: {:?}",
+        diag1.diagnostics,
+    );
+}
+
+#[test]
 fn test_flycheck_override_command_multiple_workspaces() {
     if skip_slow_tests() {
         return;
