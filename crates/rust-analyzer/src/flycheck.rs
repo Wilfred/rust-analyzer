@@ -1024,7 +1024,7 @@ impl JsonLinesParser<CheckMessage> for CheckParser {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(untagged)]
 enum JsonMessage {
     Cargo(cargo_metadata::Message),
