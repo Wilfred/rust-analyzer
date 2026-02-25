@@ -153,12 +153,12 @@ fn main() {}
 
     let diag2 = server.wait_for_diagnostics();
 
-    dbg!(&diag2.diagnostics);
+    let messages = diag2.diagnostics.iter().map(|d| d.message.clone()).collect::<Vec<_>>();
 
     assert!(
         diag2.diagnostics.iter().any(|d| d.message.contains("cannot find value")),
         "expected unused variable diagnostic from ws1, got: {:#?}",
-        diag2.diagnostics,
+        messages,
     );
 
     assert_eq!(1, 2);
