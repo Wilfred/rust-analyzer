@@ -110,3 +110,124 @@ fn main() {}
         diagnostics.diagnostics,
     );
 }
+
+#[test]
+fn test_flycheck_diagnostic_with_override_command_write_twice() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = Project::with_fixture(
+        r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/main.rs
+fn main() {}
+"#,
+    )
+    .with_config(serde_json::json!({
+        "checkOnSave": true,
+        "check": {
+            "overrideCommand": ["rustc", "--error-format=json", "$saved_file"]
+        }
+    }))
+    .server()
+    .wait_until_workspace_is_loaded();
+
+    server.write_file_and_save("src/main.rs", "fn main() {\n    let x = 1;\n}\n".to_owned());
+
+    let diagnostics = server.wait_for_diagnostics();
+    assert!(
+        diagnostics.diagnostics.iter().any(|d| d.message.contains("unused variable")),
+        "expected unused variable diagnostic, got: {:?}",
+        diagnostics.diagnostics,
+    );
+
+    server.write_file_and_save(
+        "src/main.rs",
+        "fn main() {\n    foo;\n}\n".to_owned(),
+    );
+
+    let diag2 = server.wait_for_diagnostics();
+
+    dbg!(&diag2.diagnostics);
+
+    assert!(
+        diag2.diagnostics.iter().any(|d| d.message.contains("cannot find value")),
+        "expected unused variable diagnostic from ws1, got: {:#?}",
+        diag2.diagnostics,
+    );
+
+    assert_eq!(1, 2);
+}
+
+#[test]
+fn test_flycheck_override_command_multiple_workspaces() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = Project::with_fixture(
+        r#"
+//- /ws1/Cargo.toml
+[package]
+name = "ws1"
+version = "0.0.0"
+
+//- /ws1/src/main.rs
+fn main() {}
+
+//- /ws2/Cargo.toml
+[package]
+name = "ws2"
+version = "0.0.0"
+
+//- /ws2/src/main.rs
+fn main() {}
+"#,
+    )
+    .root("ws1")
+    .root("ws2")
+    .with_config(serde_json::json!({
+        "checkOnSave": true,
+        "check": {
+            "overrideCommand": ["rustc", "--error-format=json", "$saved_file"],
+        }
+    }))
+    .server()
+    .wait_until_workspace_is_loaded();
+
+    dbg!("about to write");
+
+    // Introduce an unused variable in ws1.
+    server.write_file_and_save(
+        "ws1/src/main.rs",
+        "fn main() {\n    let x = 1;\n}\n".to_owned(),
+    );
+
+    dbg!("done writing");
+
+    let diag1 = server.wait_for_diagnostics();
+
+    dbg!("got diags");
+    
+    server.write_file_and_save(
+        "ws1/src/main.rs",
+        "fn main() {\n    foo;\n}\n".to_owned(),
+    );
+
+    let diag2 = server.wait_for_diagnostics();
+
+    dbg!(diag2.diagnostics);
+
+    // assert!(
+    //     diag1.diagnostics.iter().any(|d| d.message.contains("unused variable")),
+    //     "expected unused variable diagnostic from ws1, got: {:?}",
+    //     diag1.diagnostics,
+    // );
+
+    assert_eq!(1, 2);
+}

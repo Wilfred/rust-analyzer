@@ -497,7 +497,16 @@ impl Server {
                 text_document: self.doc_id(path),
                 text: Some(text),
             },
-        )
+        );
+
+        self.notification::<lsp_types::notification::DidChangeWatchedFiles>(
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![lsp_types::FileEvent {
+                    uri: self.doc_id(path).uri,
+                    typ: lsp_types::FileChangeType::CHANGED,
+                }],
+            },
+        );
     }
 }
 
