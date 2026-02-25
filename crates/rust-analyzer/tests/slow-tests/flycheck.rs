@@ -1,6 +1,8 @@
+use serde_json::json;
 use test_utils::skip_slow_tests;
 
 use crate::support::Project;
+use crate::testdir::TestDir;
 
 #[test]
 fn test_flycheck_diagnostics_for_unused_variable() {
@@ -156,6 +158,63 @@ fn main() {}
         diag2.diagnostics.iter().any(|d| d.message.contains("cannot find value")),
         "expected 'cannot find value' diagnostic, got: {:?}",
         diag2.diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn test_flycheck_diagnostics_for_json_project() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let tmp_dir = TestDir::new();
+    let path = tmp_dir.path();
+
+    let project = json!({
+        "crates": [{
+            "root_module": path.join("src/main.rs"),
+            "deps": [],
+            "edition": "2021",
+            "cfg": [],
+            "build": {
+                "label": "//main:main",
+                "build_file": path.join("BUILD"),
+                "target_kind": "bin",
+            },
+        }]
+    });
+
+    let code = format!(
+        r#"
+//- /.rust-project.json
+{project}
+
+//- /src/main.rs
+fn main() {{}}
+"#,
+    );
+
+    let server = Project::with_fixture(&code)
+        .tmp_dir(tmp_dir)
+        .with_config(serde_json::json!({
+            "checkOnSave": true,
+            "check": {
+                "overrideCommand": ["rustc", "--error-format=json", "$saved_file"]
+            }
+        }))
+        .server()
+        .wait_until_workspace_is_loaded();
+
+    server.write_file_and_save(
+        "src/main.rs",
+        "fn main() {\n    let x = 1;\n}\n".to_owned(),
+    );
+
+    let diagnostics = server.wait_for_diagnostics();
+    assert!(
+        diagnostics.diagnostics.iter().any(|d| d.message.contains("unused variable")),
+        "expected unused variable diagnostic, got: {:?}",
+        diagnostics.diagnostics,
     );
 }
 
