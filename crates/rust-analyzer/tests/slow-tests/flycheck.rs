@@ -409,6 +409,93 @@ fn main() {{}}
 }
 
 #[test]
+fn test_flycheck_wilfred() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let tmp_dir = TestDir::new();
+    let path = tmp_dir.path();
+
+    let project = json!({
+        "crates": [{
+            "root_module": path.join("src/main.rs"),
+            "deps": [],
+            "edition": "2021",
+            "cfg": [],
+            "is_workspace_member": true,
+            "build": {
+                "label": "//main:main",
+                "build_file": path.join("project/BUILD"),
+                "target_kind": "bin",
+            },
+        }]
+    });
+
+    let code = format!(
+        r#"
+//- /project/.rust-project.json
+{project}
+
+//- /src/main.rs
+fn main() {{}}
+"#,
+    );
+
+    // Workspace root is "project/", but source files are in "src/"
+    // which is outside the workspace root. This makes
+    // didChangeWatchedFiles trigger a workspace flycheck.
+    let server = Project::with_fixture(&code)
+        .tmp_dir(tmp_dir)
+        .root("project")
+        .with_config(serde_json::json!({
+            "checkOnSave": true,
+            "check": {
+                "overrideCommand": [
+                    "sh", "-c",
+                    "sleep 1 && rustc --error-format=json {saved_file}"
+                ],
+            }
+        }))
+        .server()
+        .wait_until_workspace_is_loaded();
+
+    // Step 1: Write the file and send didSave only.
+    let text = "fn main() {\n    let y = 1;\n}\n".to_owned();
+    std::fs::write(server.path().join("src/main.rs"), &text).unwrap();
+    server.notification::<lsp_types::notification::DidSaveTextDocument>(
+        lsp_types::DidSaveTextDocumentParams {
+            text_document: server.doc_id("src/main.rs"),
+            text: Some(text),
+        },
+    );
+
+    // Step 2: Wait for the flycheck command to start running.
+    std::thread::sleep(Duration::from_millis(500));
+
+    server.notification::<lsp_types::notification::DidChangeWatchedFiles>(
+        lsp_types::DidChangeWatchedFilesParams {
+            changes: vec![lsp_types::FileEvent {
+                uri: server.doc_id("src/main.rs").uri,
+                typ: lsp_types::FileChangeType::CHANGED,
+            }],
+        },
+    );
+
+    dbg!("about to wait");
+
+    let diagnostics = server.wait_for_diagnostics();
+
+    dbg!("done waiting");
+    
+    assert!(
+        diagnostics.diagnostics.iter().any(|d| d.message.contains("unused variable")),
+        "expected unused variable diagnostic, got: {:?}",
+        diagnostics.diagnostics,
+    );
+}
+
+#[test]
 fn test_flycheck_override_command_multiple_workspaces() {
     if skip_slow_tests() {
         return;
