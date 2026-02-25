@@ -556,7 +556,7 @@ impl FlycheckActor {
 
     fn run(mut self, inbox: Receiver<StateChange>) {
         'event: while let Some(event) = self.next_event(&inbox) {
-            match event {
+            match dbg!(event) {
                 Event::RequestStateChange(StateChange::Cancel) => {
                     tracing::debug!(flycheck_id = self.id, "flycheck cancelled");
                     self.cancel_check_process();
@@ -572,7 +572,7 @@ impl FlycheckActor {
 
                     // Debounce by briefly waiting for other state changes.
                     while let Ok(restart) = inbox.recv_timeout(Duration::from_millis(50)) {
-                        match restart {
+                        match dbg!(restart) {
                             StateChange::Cancel => {
                                 // We got a cancel straight after this restart request, so
                                 // don't do anything.

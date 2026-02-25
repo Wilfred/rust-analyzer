@@ -224,15 +224,21 @@ fn test_flycheck_diagnostics_for_json_project_multiple_workspaces() {
         return;
     }
 
+    // Set up two rust-project.json workspaces where the source files live
+    // OUTSIDE the workspace roots. This means didChangeWatchedFiles will
+    // see the saved file as outside all workspace roots and trigger a
+    // workspace-level flycheck with saved_file: None, which races with
+    // the didSave flycheck that has saved_file set.
     let tmp_dir = TestDir::new();
     let path = tmp_dir.path();
 
     let project1 = json!({
         "crates": [{
-            "root_module": path.join("ws1/src/main.rs"),
+            "root_module": path.join("src1/main.rs"),
             "deps": [],
             "edition": "2021",
             "cfg": [],
+            "is_workspace_member": true,
             "build": {
                 "label": "//ws1:main",
                 "build_file": path.join("ws1/BUILD"),
@@ -243,10 +249,11 @@ fn test_flycheck_diagnostics_for_json_project_multiple_workspaces() {
 
     let project2 = json!({
         "crates": [{
-            "root_module": path.join("ws2/src/main.rs"),
+            "root_module": path.join("src2/main.rs"),
             "deps": [],
             "edition": "2021",
             "cfg": [],
+            "is_workspace_member": true,
             "build": {
                 "label": "//ws2:main",
                 "build_file": path.join("ws2/BUILD"),
@@ -260,13 +267,13 @@ fn test_flycheck_diagnostics_for_json_project_multiple_workspaces() {
 //- /ws1/.rust-project.json
 {project1}
 
-//- /ws1/src/main.rs
+//- /src1/main.rs
 fn main() {{}}
 
 //- /ws2/.rust-project.json
 {project2}
 
-//- /ws2/src/main.rs
+//- /src2/main.rs
 fn main() {{}}
 "#,
     );
@@ -278,15 +285,17 @@ fn main() {{}}
         .with_config(serde_json::json!({
             "checkOnSave": true,
             "check": {
-                "overrideCommand": ["rustc", "--error-format=json", "$saved_file"],
+                "overrideCommand": ["sh", "-c", "sleep 1 && rustc --error-format=json {saved_file}"],
             }
         }))
         .server()
         .wait_until_workspace_is_loaded();
 
-    // Introduce an unused variable in ws1.
+    // Introduce an unused variable in ws1. The source file is outside the
+    // workspace roots, so didChangeWatchedFiles will also trigger a
+    // workspace flycheck with saved_file: None.
     server.write_file_and_save(
-        "ws1/src/main.rs",
+        "src1/main.rs",
         "fn main() {\n    let x = 1;\n}\n".to_owned(),
     );
 
