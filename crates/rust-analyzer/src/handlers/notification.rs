@@ -6,6 +6,7 @@ use std::{
     panic::UnwindSafe,
 };
 
+use cargo_metadata::PackageId;
 use itertools::Itertools;
 use lsp_types::{
     CancelParams, DidChangeConfigurationParams, DidChangeTextDocumentParams,
@@ -18,7 +19,7 @@ use vfs::{AbsPathBuf, ChangeKind, VfsPath};
 
 use crate::{
     config::{Config, ConfigChange},
-    flycheck::{InvocationStrategy, PackageSpecifier, Target},
+    flycheck::{InvocationStrategy, Target},
     global_state::{FetchWorkspaceRequest, GlobalState},
     lsp::{from_proto, utils::apply_document_changes},
     lsp_ext::{self, RunFlycheckParams},
@@ -342,33 +343,26 @@ fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
                 InvocationStrategy::PerWorkspace => {
                     Box::new(move || {
                         let saved_file = vfs_path.as_path().map(ToOwned::to_owned);
-                        let target = TargetSpec::for_file(&world, file_id)?.map(|it| {
-                            let tgt_kind = it.target_kind();
-                            let (tgt_name, root, package) = match it {
-                                TargetSpec::Cargo(c) => (
-                                    Some(c.target),
-                                    c.workspace_root,
-                                    PackageSpecifier::Cargo { package_id: c.package_id },
-                                ),
-                                TargetSpec::ProjectJson(p) => (
-                                    None,
-                                    p.project_root,
-                                    PackageSpecifier::BuildInfo { label: p.label.clone() },
-                                ),
-                            };
+                        let target: Option<(Option<Target>, _, Arc<PackageId>)> =
+                            TargetSpec::for_file(&world, file_id)?.and_then(|it| {
+                                let tgt_kind = it.target_kind();
+                                let (tgt_name, root, package) = match it {
+                                    TargetSpec::Cargo(c) => {
+                                        (c.target, c.workspace_root, c.package_id)
+                                    }
+                                    _ => return None,
+                                };
 
-                            let tgt = tgt_name.and_then(|tgt_name| {
-                                Some(match tgt_kind {
+                                let tgt = match tgt_kind {
                                     project_model::TargetKind::Bin => Target::Bin(tgt_name),
                                     project_model::TargetKind::Example => Target::Example(tgt_name),
                                     project_model::TargetKind::Test => Target::Test(tgt_name),
                                     project_model::TargetKind::Bench => Target::Benchmark(tgt_name),
-                                    _ => return None,
-                                })
-                            });
+                                    _ => return Some((None, root, package)),
+                                };
 
-                            (tgt, root, package)
-                        });
+                                Some((Some(tgt), root, package))
+                            });
                         tracing::debug!(?target, "flycheck target");
                         // we have a specific non-library target, attempt to only check that target, nothing
                         // else will be affected
@@ -376,10 +370,8 @@ fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
                         if let Some((target, root, package)) = target {
                             // trigger a package check if we have a non-library target as that can't affect
                             // anything else in the workspace OR if we're not allowed to check the workspace as
-                            // the user opted into package checks then OR if this is not cargo.
-                            let package_check_allowed = target.is_some()
-                                || !may_flycheck_workspace
-                                || matches!(package, PackageSpecifier::BuildInfo { .. });
+                            // the user opted into package checks then
+                            let package_check_allowed = target.is_some() || !may_flycheck_workspace;
                             if package_check_allowed {
                                 package_workspace_idx =
                                     world.workspaces.iter().position(|ws| match &ws.kind {
@@ -412,7 +404,6 @@ fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
                                             package,
                                             target,
                                             workspace_deps,
-                                            saved_file.clone(),
                                         );
                                     }
                                 }

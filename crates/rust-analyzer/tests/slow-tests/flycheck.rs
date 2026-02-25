@@ -125,10 +125,7 @@ fn main() {{}}
     // Introduce an unused variable in ws1. The source file is outside the
     // workspace roots, so didChangeWatchedFiles will also trigger a
     // workspace flycheck with saved_file: None.
-    server.write_file_and_save(
-        "ws1/src/main.rs",
-        "fn main() {\n    let x = 1;\n}\n".to_owned(),
-    );
+    server.write_file_and_save("ws1/src/main.rs", "fn main() {\n    let x = 1;\n}\n".to_owned());
 
     let diag1 = server.wait_for_diagnostics();
     assert!(
@@ -139,15 +136,11 @@ fn main() {{}}
 
     dbg!();
 
-    server.write_file_and_save(
-        "ws1/src/main.rs",
-        "fn main() {\n    let _x = 1;\n}\n".to_owned(),
-    );
+    server.write_file_and_save("ws1/src/main.rs", "fn main() {\n    let _x = 1;\n}\n".to_owned());
 
     dbg!();
     server.wait_for_diagnostics_cleared();
     dbg!();
-
 }
 
 #[test]
