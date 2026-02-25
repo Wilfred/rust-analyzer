@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde_json::json;
 use test_utils::skip_slow_tests;
 
@@ -304,6 +306,105 @@ fn main() {{}}
         diag1.diagnostics.iter().any(|d| d.message.contains("unused variable")),
         "expected unused variable diagnostic from ws1, got: {:?}",
         diag1.diagnostics,
+    );
+}
+
+/// Regression test: when source files are outside the workspace roots,
+/// didChangeWatchedFiles triggers a workspace-level flycheck with
+/// saved_file: None. If this arrives after the didSave flycheck has
+/// already started running, it cancels the running check and tries to
+/// start a new one — but $saved_file / {saved_file} can't be
+/// substituted, so no check runs and diagnostics are lost.
+///
+/// This test separates the two notifications with a delay so the first
+/// flycheck command is actively running when the second restart arrives.
+#[test]
+fn test_flycheck_json_project_didchangewatchedfiles_cancels_save() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let tmp_dir = TestDir::new();
+    let path = tmp_dir.path();
+
+    let project = json!({
+        "crates": [{
+            "root_module": path.join("src/main.rs"),
+            "deps": [],
+            "edition": "2021",
+            "cfg": [],
+            "is_workspace_member": true,
+            "build": {
+                "label": "//main:main",
+                "build_file": path.join("project/BUILD"),
+                "target_kind": "bin",
+            },
+        }]
+    });
+
+    let code = format!(
+        r#"
+//- /project/.rust-project.json
+{project}
+
+//- /src/main.rs
+fn main() {{}}
+"#,
+    );
+
+    // Workspace root is "project/", but source files are in "src/"
+    // which is outside the workspace root. This makes
+    // didChangeWatchedFiles trigger a workspace flycheck.
+    let server = Project::with_fixture(&code)
+        .tmp_dir(tmp_dir)
+        .root("project")
+        .with_config(serde_json::json!({
+            "checkOnSave": true,
+            "check": {
+                "overrideCommand": [
+                    "sh", "-c",
+                    "sleep 1 && rustc --error-format=json {saved_file}"
+                ],
+            }
+        }))
+        .server()
+        .wait_until_workspace_is_loaded();
+
+    // Step 1: Write the file and send didSave only. This triggers
+    // run_flycheck which (after async Salsa queries) starts the check
+    // command. The command sleeps for 1s so it will still be running
+    // when we send didChangeWatchedFiles.
+    let text = "fn main() {\n    let x = 1;\n}\n".to_owned();
+    std::fs::write(server.path().join("src/main.rs"), &text).unwrap();
+    server.notification::<lsp_types::notification::DidSaveTextDocument>(
+        lsp_types::DidSaveTextDocumentParams {
+            text_document: server.doc_id("src/main.rs"),
+            text: Some(text),
+        },
+    );
+
+    // Step 2: Wait for the flycheck command to start running.
+    std::thread::sleep(Duration::from_millis(500));
+
+    // Step 3: Send didChangeWatchedFiles. Because src/main.rs is
+    // outside the workspace root "project/", this triggers
+    // restart_workspace(None) which cancels the running check and
+    // attempts to start a new one with saved_file: None.
+    // The {saved_file} substitution fails, so no check runs.
+    server.notification::<lsp_types::notification::DidChangeWatchedFiles>(
+        lsp_types::DidChangeWatchedFilesParams {
+            changes: vec![lsp_types::FileEvent {
+                uri: server.doc_id("src/main.rs").uri,
+                typ: lsp_types::FileChangeType::CHANGED,
+            }],
+        },
+    );
+
+    let diagnostics = server.wait_for_diagnostics();
+    assert!(
+        diagnostics.diagnostics.iter().any(|d| d.message.contains("unused variable")),
+        "expected unused variable diagnostic, got: {:?}",
+        diagnostics.diagnostics,
     );
 }
 
