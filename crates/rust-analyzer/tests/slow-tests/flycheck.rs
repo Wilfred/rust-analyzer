@@ -150,10 +150,7 @@ fn main() {}
         diagnostics.diagnostics,
     );
 
-    server.write_file_and_save(
-        "src/main.rs",
-        "fn main() {\n    foo;\n}\n".to_owned(),
-    );
+    server.write_file_and_save("src/main.rs", "fn main() {\n    foo;\n}\n".to_owned());
 
     let diag2 = server.wait_for_diagnostics();
     assert!(
@@ -207,10 +204,7 @@ fn main() {{}}
         .server()
         .wait_until_workspace_is_loaded();
 
-    server.write_file_and_save(
-        "src/main.rs",
-        "fn main() {\n    let x = 1;\n}\n".to_owned(),
-    );
+    server.write_file_and_save("src/main.rs", "fn main() {\n    let x = 1;\n}\n".to_owned());
 
     let diagnostics = server.wait_for_diagnostics();
     assert!(
@@ -296,10 +290,7 @@ fn main() {{}}
     // Introduce an unused variable in ws1. The source file is outside the
     // workspace roots, so didChangeWatchedFiles will also trigger a
     // workspace flycheck with saved_file: None.
-    server.write_file_and_save(
-        "src1/main.rs",
-        "fn main() {\n    let x = 1;\n}\n".to_owned(),
-    );
+    server.write_file_and_save("src1/main.rs", "fn main() {\n    let x = 1;\n}\n".to_owned());
 
     let diag1 = server.wait_for_diagnostics();
     assert!(
@@ -329,7 +320,7 @@ fn test_flycheck_json_project_didchangewatchedfiles_cancels_save() {
 
     let project = json!({
         "crates": [{
-            "root_module": path.join("src/main.rs"),
+            "root_module": path.join("project/src/main.rs"),
             "deps": [],
             "edition": "2021",
             "cfg": [],
@@ -347,7 +338,7 @@ fn test_flycheck_json_project_didchangewatchedfiles_cancels_save() {
 //- /project/.rust-project.json
 {project}
 
-//- /src/main.rs
+//- /project/src/main.rs
 fn main() {{}}
 "#,
     );
@@ -445,27 +436,46 @@ fn main() {{}}
     // Workspace root is "project/", but source files are in "src/"
     // which is outside the workspace root. This makes
     // didChangeWatchedFiles trigger a workspace flycheck.
-    let server = Project::with_fixture(&code)
-        .tmp_dir(tmp_dir)
-        .root("project")
-        .with_config(serde_json::json!({
-            "checkOnSave": true,
-            "check": {
-                "overrideCommand": [
-                    "sh", "-c",
-                    "sleep 1 && rustc --error-format=json {saved_file}"
-                ],
-            }
-        }))
-        .server()
-        .wait_until_workspace_is_loaded();
+    let server = Project::with_fixture(
+        r#"
+//- /ws1/Cargo.toml
+[package]
+name = "ws1"
+version = "0.0.0"
+
+//- /ws1/src/main.rs
+fn main() {}
+
+//- /ws2/Cargo.toml
+[package]
+name = "ws2"
+version = "0.0.0"
+
+//- /ws2/src/main.rs
+fn main() {}
+"#,
+    )
+    .root("ws1")
+    .root("ws2")
+    .tmp_dir(tmp_dir)
+    .with_config(serde_json::json!({
+        "checkOnSave": true,
+        "check": {
+            "overrideCommand": [
+                "sh", "-c",
+                "sleep 1 && rustc --error-format=json {saved_file}"
+            ],
+        }
+    }))
+    .server()
+    .wait_until_workspace_is_loaded();
 
     // Step 1: Write the file and send didSave only.
     let text = "fn main() {\n    let y = 1;\n}\n".to_owned();
-    std::fs::write(server.path().join("src/main.rs"), &text).unwrap();
+    std::fs::write(server.path().join("ws1/src/main.rs"), &text).unwrap();
     server.notification::<lsp_types::notification::DidSaveTextDocument>(
         lsp_types::DidSaveTextDocumentParams {
-            text_document: server.doc_id("src/main.rs"),
+            text_document: server.doc_id("ws1/src/main.rs"),
             text: Some(text),
         },
     );
@@ -476,7 +486,7 @@ fn main() {{}}
     server.notification::<lsp_types::notification::DidChangeWatchedFiles>(
         lsp_types::DidChangeWatchedFilesParams {
             changes: vec![lsp_types::FileEvent {
-                uri: server.doc_id("src/main.rs").uri,
+                uri: server.doc_id("ws1/src/main.rs").uri,
                 typ: lsp_types::FileChangeType::CHANGED,
             }],
         },
@@ -487,7 +497,7 @@ fn main() {{}}
     let diagnostics = server.wait_for_diagnostics();
 
     dbg!("done waiting");
-    
+
     assert!(
         diagnostics.diagnostics.iter().any(|d| d.message.contains("unused variable")),
         "expected unused variable diagnostic, got: {:?}",
@@ -533,10 +543,7 @@ fn main() {}
     .wait_until_workspace_is_loaded();
 
     // Introduce an unused variable in ws1.
-    server.write_file_and_save(
-        "ws1/src/main.rs",
-        "fn main() {\n    let x = 1;\n}\n".to_owned(),
-    );
+    server.write_file_and_save("ws1/src/main.rs", "fn main() {\n    let x = 1;\n}\n".to_owned());
 
     let diag1 = server.wait_for_diagnostics();
     assert!(
