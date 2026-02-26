@@ -497,7 +497,18 @@ impl Server {
                 text_document: self.doc_id(path),
                 text: Some(text),
             },
-        )
+        );
+
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        self.notification::<lsp_types::notification::DidChangeWatchedFiles>(
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![lsp_types::FileEvent {
+                    uri: self.doc_id(path).uri,
+                    typ: lsp_types::FileChangeType::CHANGED,
+                }],
+            },
+        );
     }
 }
 
