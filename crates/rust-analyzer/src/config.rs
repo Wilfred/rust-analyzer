@@ -2499,7 +2499,7 @@ impl Config {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let command = args.remove(0);
-                FlycheckConfig::CustomCommand {
+                FlycheckConfig::OverriddenCheckCommand {
                     command,
                     args,
                     extra_env: self.check_extra_env(source_root),

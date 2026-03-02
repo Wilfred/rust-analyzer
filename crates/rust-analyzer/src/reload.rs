@@ -918,7 +918,7 @@ impl GlobalState {
                                         _ if config_json.any_configured() => {
                                             (config_json, project.path(), None, None)
                                         }
-                                        FlycheckConfig::CustomCommand { .. } => {
+                                        FlycheckConfig::OverriddenCheckCommand { .. } => {
                                             (config_json, project.path(), None, None)
                                         }
                                         _ => return None,

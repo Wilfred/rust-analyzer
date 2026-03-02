@@ -123,7 +123,7 @@ pub(crate) enum FlycheckConfig {
         ansi_color_output: bool,
     },
     /// check_overrideCommand. This overrides both cargo and rust-project.json's flycheck runnable.
-    CustomCommand {
+    OverriddenCheckCommand {
         command: String,
         args: Vec<String>,
         extra_env: FxHashMap<String, Option<String>>,
@@ -135,7 +135,7 @@ impl FlycheckConfig {
     pub(crate) fn invocation_strategy(&self) -> InvocationStrategy {
         match self {
             FlycheckConfig::Automatic { .. } => InvocationStrategy::PerWorkspace,
-            FlycheckConfig::CustomCommand { invocation_strategy, .. } => {
+            FlycheckConfig::OverriddenCheckCommand { invocation_strategy, .. } => {
                 invocation_strategy.clone()
             }
         }
@@ -149,7 +149,7 @@ impl fmt::Display for FlycheckConfig {
             FlycheckConfig::Automatic { cargo_options, .. } => {
                 write!(f, "cargo {}", cargo_options.subcommand)
             }
-            FlycheckConfig::CustomCommand { command, args, .. } => {
+            FlycheckConfig::OverriddenCheckCommand { command, args, .. } => {
                 // Don't show `my_custom_check --foo $saved_file` literally to the user, as it
                 // looks like we've forgotten to substitute $saved_file.
                 //
@@ -887,7 +887,12 @@ impl FlycheckActor {
                 cmd.args(&cargo_options.extra_args);
                 Some((cmd, FlycheckCommandOrigin::Cargo))
             }
-            FlycheckConfig::CustomCommand { command, args, extra_env, invocation_strategy } => {
+            FlycheckConfig::OverriddenCheckCommand {
+                command,
+                args,
+                extra_env,
+                invocation_strategy,
+            } => {
                 let root = match invocation_strategy {
                     InvocationStrategy::Once => &*self.root,
                     InvocationStrategy::PerWorkspace => {
@@ -1096,7 +1101,7 @@ mod tests {
         };
         assert_eq!(clippy.to_string(), "cargo clippy");
 
-        let custom_dollar = FlycheckConfig::CustomCommand {
+        let custom_dollar = FlycheckConfig::OverriddenCheckCommand {
             command: "check".to_owned(),
             args: vec!["--input".to_owned(), "$saved_file".to_owned()],
             extra_env: FxHashMap::default(),
@@ -1104,7 +1109,7 @@ mod tests {
         };
         assert_eq!(custom_dollar.to_string(), "check --input ...");
 
-        let custom_inline = FlycheckConfig::CustomCommand {
+        let custom_inline = FlycheckConfig::OverriddenCheckCommand {
             command: "check".to_owned(),
             args: vec!["--input".to_owned(), "{saved_file}".to_owned()],
             extra_env: FxHashMap::default(),
@@ -1112,7 +1117,7 @@ mod tests {
         };
         assert_eq!(custom_inline.to_string(), "check --input ...");
 
-        let custom_rs = FlycheckConfig::CustomCommand {
+        let custom_rs = FlycheckConfig::OverriddenCheckCommand {
             command: "check".to_owned(),
             args: vec!["--input".to_owned(), "/path/to/file.rs".to_owned()],
             extra_env: FxHashMap::default(),
