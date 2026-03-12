@@ -302,9 +302,6 @@ Known rust-analyzer bugs that can cause this:
   * Definitions in crate example binaries which have the same symbol as definitions in the library
     or some other example.
 
-  * Struct/enum/const/static/impl definitions nested in a function do not mention the function name.
-    See #18771.
-
 Duplicate symbols encountered:
 ";
 
@@ -834,7 +831,6 @@ pub mod example_mod {
         );
     }
 
-    // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_nested_function() {
         check_symbol(
@@ -844,13 +840,10 @@ pub mod example_mod {
        pub fn inner_func$0() {}
     }
     "#,
-            "rust-analyzer cargo main . inner_func().",
-            // FIXME: This should be a local:
-            // "local enclosed by rust-analyzer cargo main . func().",
+            "local enclosed by rust-analyzer cargo main . func().",
         );
     }
 
-    // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_struct_in_function() {
         check_symbol(
@@ -860,13 +853,10 @@ pub mod example_mod {
        struct SomeStruct$0 {}
     }
     "#,
-            "rust-analyzer cargo main . SomeStruct#",
-            // FIXME: This should be a local:
-            // "local enclosed by rust-analyzer cargo main . func().",
+            "local enclosed by rust-analyzer cargo main . func().",
         );
     }
 
-    // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_const_in_function() {
         check_symbol(
@@ -876,13 +866,10 @@ pub mod example_mod {
        const SOME_CONST$0: u32 = 1;
     }
     "#,
-            "rust-analyzer cargo main . SOME_CONST.",
-            // FIXME: This should be a local:
-            // "local enclosed by rust-analyzer cargo main . func().",
+            "local enclosed by rust-analyzer cargo main . func().",
         );
     }
 
-    // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_static_in_function() {
         check_symbol(
@@ -892,9 +879,7 @@ pub mod example_mod {
        static SOME_STATIC$0: u32 = 1;
     }
     "#,
-            "rust-analyzer cargo main . SOME_STATIC.",
-            // FIXME: This should be a local:
-            // "local enclosed by rust-analyzer cargo main . func().",
+            "local enclosed by rust-analyzer cargo main . func().",
         );
     }
 

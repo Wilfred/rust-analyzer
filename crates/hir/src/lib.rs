@@ -600,6 +600,40 @@ impl Module {
         Module { id }
     }
 
+    /// Returns `true` if this module corresponds to a block expression's scope
+    /// (i.e., items defined inside a function body).
+    pub fn is_block_module(self, db: &dyn HirDatabase) -> bool {
+        self.id.is_block_module(db)
+    }
+
+    /// For a block module, finds the `DefWithBody` (function, const, static)
+    /// that contains the block expression which created this module.
+    pub fn enclosing_def_with_body(self, db: &dyn HirDatabase) -> Option<DefWithBody> {
+        let block_id = self.id.block(db)?;
+        let parent_module_id = self.id.containing_module(db)?;
+        let def_map = parent_module_id.def_map(db);
+        let scope = &def_map[parent_module_id].scope;
+        for decl in scope.declarations() {
+            let def_with_body: DefWithBodyId = match decl {
+                ModuleDefId::FunctionId(id) => id.into(),
+                ModuleDefId::ConstId(id) => id.into(),
+                ModuleDefId::StaticId(id) => id.into(),
+                ModuleDefId::EnumVariantId(id) => id.into(),
+                _ => continue,
+            };
+            let body = db.body(def_with_body);
+            if body.blocks(db).any(|(id, _)| id == block_id) {
+                return Some(match def_with_body {
+                    DefWithBodyId::FunctionId(id) => DefWithBody::Function(id.into()),
+                    DefWithBodyId::ConstId(id) => DefWithBody::Const(id.into()),
+                    DefWithBodyId::StaticId(id) => DefWithBody::Static(id.into()),
+                    DefWithBodyId::VariantId(id) => DefWithBody::Variant(id.into()),
+                });
+            }
+        }
+        None
+    }
+
     pub fn path_to_root(self, db: &dyn HirDatabase) -> Vec<Module> {
         let mut res = vec![self];
         let mut curr = self;
