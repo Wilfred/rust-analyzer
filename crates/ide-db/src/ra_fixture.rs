@@ -22,6 +22,10 @@ impl RootDatabase {
         text: &str,
         minicore: MiniCore<'_>,
     ) -> Result<(RootDatabase, Vec<(FileId, usize)>, Vec<FileId>), ()> {
+        // Validate the fixture text before parsing to avoid panics from invalid fixtures
+        // (e.g. when SCIP indexes source files containing test fixture string literals).
+        validate_fixture_text(text)?;
+
         // We don't want a mistake in the fixture to crash r-a, so we wrap this in `catch_unwind()`.
         std::panic::catch_unwind(|| {
             let mut db = RootDatabase::default();
@@ -50,6 +54,75 @@ impl RootDatabase {
             );
         })
     }
+}
+
+/// Quick validation of fixture text to reject inputs that would cause
+/// `ChangeFixture::parse_with_proc_macros` to panic. This mirrors the
+/// validation logic in `FixtureWithProjectMeta::parse` and
+/// `ChangeFixture::parse_with_proc_macros` without duplicating the full
+/// parsing.
+fn validate_fixture_text(text: &str) -> Result<(), ()> {
+    let trimmed = stdx::trim_indent(text);
+    let mut remaining = trimmed.as_str();
+
+    // Strip known meta prefixes (must appear in this order at the start).
+    for prefix in [
+        "//- toolchain:",
+        "//- target_data_layout:",
+        "//- target_arch:",
+        "//- proc_macros:",
+        "//- minicore:",
+    ] {
+        if let Some(rest) = remaining.strip_prefix(prefix) {
+            remaining = rest.split_once('\n').map_or("", |(_, r)| r);
+        }
+    }
+
+    // Check that all `//- ` lines have paths starting with `/`.
+    let mut has_file_entries = false;
+    let mut has_named_crate = false;
+    let mut crate_names: Vec<&str> = Vec::new();
+    let mut all_deps: Vec<&str> = Vec::new();
+
+    for line in remaining.lines() {
+        if let Some(meta) = line.strip_prefix("//- ") {
+            let meta = meta.trim();
+            let mut parts = meta.split_ascii_whitespace();
+            let path = parts.next().unwrap_or("");
+            if !path.starts_with('/') {
+                return Err(());
+            }
+            has_file_entries = true;
+            for part in parts {
+                if let Some(name) = part.strip_prefix("crate:") {
+                    has_named_crate = true;
+                    let name = name.split_once('@').map_or(name, |(n, _)| n);
+                    crate_names.push(name);
+                } else if let Some(deps) = part.strip_prefix("deps:") {
+                    all_deps.extend(deps.split(','));
+                }
+            }
+        }
+    }
+
+    // If there are file entries but no named crate, there must be a /main.rs or /lib.rs.
+    if has_file_entries && !has_named_crate {
+        let has_default_root =
+            remaining.contains("//- /main.rs") || remaining.contains("//- /lib.rs");
+        if !has_default_root {
+            return Err(());
+        }
+    }
+
+    // Check that all deps reference defined crates.
+    for dep in &all_deps {
+        let dep_normalized = dep.replace('-', "_");
+        if !crate_names.iter().any(|name| name.replace('-', "_") == dep_normalized) {
+            return Err(());
+        }
+    }
+
+    Ok(())
 }
 
 pub struct RaFixtureAnalysis {
