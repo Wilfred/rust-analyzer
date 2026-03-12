@@ -261,7 +261,16 @@ pub(crate) fn def_to_moniker(
         }
         _ => {}
     }
-    Some(MonikerResult::Moniker(def_to_non_local_moniker(db, definition, from_crate)?))
+    match def_to_non_local_moniker(db, definition, from_crate) {
+        Some(moniker) => Some(MonikerResult::Moniker(moniker)),
+        None => {
+            // The definition is inside a function body (block module) and can't
+            // have a non-local moniker. Treat it as a local.
+            Some(MonikerResult::Local {
+                enclosing_moniker: enclosing_def_to_moniker(db, definition, from_crate),
+            })
+        }
+    }
 }
 
 fn enclosing_def_to_moniker(
@@ -332,7 +341,9 @@ fn def_to_non_local_moniker(
                             }
                         }
                         _ => {
-                            tracing::error!(?def, "Encountered enclosing definition with no name");
+                            // Block module (items inside a function body) — can't
+                            // be expressed as a non-local moniker.
+                            return None;
                         }
                     }
                 }
@@ -607,6 +618,36 @@ pub mod module {
 "#,
             "foo::module::func",
             r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
+            MonikerKind::Export,
+        );
+    }
+
+    #[test]
+    fn local_nested_function() {
+        check_local_moniker(
+            r#"
+//- /lib.rs crate:main
+pub fn func() {
+    fn inner$0() {}
+}
+"#,
+            "main::func",
+            r#"PackageInformation { name: "main", repo: None, version: None }"#,
+            MonikerKind::Export,
+        );
+    }
+
+    #[test]
+    fn local_const_in_function() {
+        check_local_moniker(
+            r#"
+//- /lib.rs crate:main
+pub fn func() {
+    const MY_CONST$0: u32 = 1;
+}
+"#,
+            "main::func",
+            r#"PackageInformation { name: "main", repo: None, version: None }"#,
             MonikerKind::Export,
         );
     }

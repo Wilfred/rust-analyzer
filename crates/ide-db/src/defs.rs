@@ -114,7 +114,23 @@ impl Definition {
         }
         match self {
             Definition::Macro(it) => Some(it.module(db).into()),
-            Definition::Module(it) => it.parent(db).map(Definition::Module),
+            Definition::Module(it) => {
+                if it.is_block_module(db) {
+                    // For block modules (items inside function bodies), find the
+                    // enclosing DefWithBody (function/const/static) rather than
+                    // skipping directly to the parent module.
+                    if let Some(def_with_body) = it.enclosing_def_with_body(db) {
+                        return Some(match def_with_body {
+                            DefWithBody::Function(f) => Definition::Function(f),
+                            DefWithBody::Const(c) => Definition::Const(c),
+                            DefWithBody::Static(s) => Definition::Static(s),
+                            DefWithBody::Variant(v) => Definition::Variant(v),
+                        });
+                    }
+                }
+
+                it.parent(db).map(Definition::Module)
+            }
             Definition::Crate(_) => None,
             Definition::Field(it) => Some(it.parent_def(db).into()),
             Definition::Function(it) => container_to_definition(it.container(db)),
