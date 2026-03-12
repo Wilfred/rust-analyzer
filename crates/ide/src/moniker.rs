@@ -424,17 +424,19 @@ mod tests {
         let (analysis, position) = fixture::position(ra_fixture);
         let x = analysis.moniker(position).unwrap().expect("no moniker found").info;
         assert_eq!(x.len(), 1);
-        match x.into_iter().next().unwrap() {
+        let item = x.into_iter().next().unwrap();
+
+        match item {
             MonikerResult::Local { enclosing_moniker: Some(x) } => {
                 assert_eq!(identifier, x.identifier.to_string());
                 assert_eq!(package, format!("{:?}", x.package_information));
                 assert_eq!(kind, x.kind);
             }
             MonikerResult::Local { enclosing_moniker: None } => {
-                panic!("Unexpected local with no enclosing moniker");
+                panic!("Unexpected local with no enclosing moniker, got {:?}", item);
             }
             MonikerResult::Moniker(_) => {
-                panic!("Unexpected non-local moniker");
+                panic!("Unexpected non-local moniker, got {:?}", item);
             }
         }
     }
