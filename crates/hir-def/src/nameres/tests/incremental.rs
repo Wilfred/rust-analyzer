@@ -78,6 +78,7 @@ pub const BAZ: u32 = 0;
                 CrateOrigin::Local { repo: None, name: Some(Symbol::intern(crate_name)) },
                 Vec::new(),
                 false,
+                Default::default(),
                 Arc::new(
                     // FIXME: This is less than ideal
                     TryFrom::try_from(

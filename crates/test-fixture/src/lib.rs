@@ -350,6 +350,7 @@ impl ChangeFixture {
                     origin,
                     meta.crate_attrs,
                     false,
+                    Default::default(),
                     proc_macro_cwd.clone(),
                     crate_ws_data.clone(),
                 );
@@ -404,6 +405,7 @@ impl ChangeFixture {
                 CrateOrigin::Lang(LangCrateOrigin::Core),
                 Vec::new(),
                 false,
+                Default::default(),
                 proc_macro_cwd.clone(),
                 crate_ws_data.clone(),
             );
@@ -435,6 +437,7 @@ impl ChangeFixture {
                 CrateOrigin::Local { repo: None, name: None },
                 Vec::new(),
                 false,
+                Default::default(),
                 proc_macro_cwd.clone(),
                 crate_ws_data.clone(),
             );
@@ -499,6 +502,7 @@ impl ChangeFixture {
                 CrateOrigin::Local { repo: None, name: None },
                 Vec::new(),
                 true,
+                Default::default(),
                 proc_macro_cwd,
                 crate_ws_data,
             );

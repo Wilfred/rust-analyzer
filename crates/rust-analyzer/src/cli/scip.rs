@@ -2,6 +2,7 @@
 
 use std::{path::PathBuf, time::Instant};
 
+use ide_db::base_db::CrateTargetKind;
 use ide::{
     AnalysisHost, LineCol, Moniker, MonikerDescriptorKind, MonikerIdentifier, MonikerResult,
     RootDatabase, StaticIndex, StaticIndexedFile, SymbolInformationKind, TextRange, TokenId,
@@ -291,16 +292,10 @@ impl flags::Scip {
     }
 }
 
-// FIXME: Known buggy cases are described here.
 const DUPLICATE_SYMBOLS_MESSAGE: &str = "
 Encountered duplicate scip symbols, indicating an internal rust-analyzer bug. These duplicates are
 included in the output, but this causes information lookup to be ambiguous and so information about
 these symbols presented by downstream tools may be incorrect.
-
-Known rust-analyzer bugs that can cause this:
-
-  * Definitions in crate example binaries which have the same symbol as definitions in the library
-    or some other example.
 
 Duplicate symbols encountered:
 ";
@@ -474,6 +469,17 @@ impl SymbolGenerator {
 }
 
 fn moniker_to_symbol(moniker: &Moniker) -> scip_types::Symbol {
+    let target_kind = moniker.package_information.target_kind;
+    let mut descriptors = moniker_descriptors(&moniker.identifier);
+    // For non-lib targets, prepend a namespace descriptor to disambiguate from the library
+    // target and other targets in the same package.
+    if let Some(kind_name) = target_kind_descriptor_name(target_kind) {
+        let target_descriptor = new_descriptor_str(
+            &format!("{}:{}", kind_name, moniker.identifier.crate_name),
+            scip_types::descriptor::Suffix::Namespace,
+        );
+        descriptors.insert(0, target_descriptor);
+    }
     scip_types::Symbol {
         scheme: "rust-analyzer".into(),
         package: Some(scip_types::Package {
@@ -483,8 +489,20 @@ fn moniker_to_symbol(moniker: &Moniker) -> scip_types::Symbol {
             special_fields: Default::default(),
         })
         .into(),
-        descriptors: moniker_descriptors(&moniker.identifier),
+        descriptors,
         special_fields: Default::default(),
+    }
+}
+
+fn target_kind_descriptor_name(kind: CrateTargetKind) -> Option<&'static str> {
+    match kind {
+        CrateTargetKind::Lib => None,
+        CrateTargetKind::Bin => Some("bin"),
+        CrateTargetKind::Test => Some("test"),
+        CrateTargetKind::Bench => Some("bench"),
+        CrateTargetKind::Example => Some("example"),
+        CrateTargetKind::BuildScript => Some("build-script"),
+        CrateTargetKind::Other => Some("other"),
     }
 }
 

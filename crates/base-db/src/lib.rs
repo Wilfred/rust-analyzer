@@ -26,7 +26,8 @@ pub use crate::{
     editioned_file_id::EditionedFileId,
     input::{
         BuiltCrateData, BuiltDependency, Crate, CrateBuilder, CrateBuilderId, CrateDataBuilder,
-        CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin, CratesIdMap, CratesMap,
+        CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin, CrateTargetKind,
+        CratesIdMap, CratesMap,
         DependencyBuilder, Env, ExtraCrateData, LangCrateOrigin, ProcMacroLoadingError,
         ProcMacroPaths, ReleaseChannel, SourceRoot, SourceRootId, UniqueCrateData,
     },

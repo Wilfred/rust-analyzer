@@ -378,6 +378,22 @@ pub struct ExtraCrateData {
     pub display_name: Option<CrateDisplayName>,
     /// The cfg options that could be used by the crate
     pub potential_cfg_options: Option<CfgOptions>,
+    /// The kind of cargo target this crate corresponds to.
+    pub target_kind: CrateTargetKind,
+}
+
+/// Identifies the kind of cargo target a crate corresponds to.
+/// Used to disambiguate SCIP symbols for crates within the same package.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum CrateTargetKind {
+    #[default]
+    Lib,
+    Bin,
+    Test,
+    Bench,
+    Example,
+    BuildScript,
+    Other,
 }
 
 #[derive(Default, Clone, PartialEq, Eq)]
@@ -535,6 +551,7 @@ impl CrateGraphBuilder {
         origin: CrateOrigin,
         crate_attrs: Vec<String>,
         is_proc_macro: bool,
+        target_kind: CrateTargetKind,
         proc_macro_cwd: Arc<AbsPathBuf>,
         ws_data: Arc<CrateWorkspaceData>,
     ) -> CrateBuilderId {
@@ -557,7 +574,7 @@ impl CrateGraphBuilder {
                 is_proc_macro,
                 proc_macro_cwd,
             },
-            extra: ExtraCrateData { version, display_name, potential_cfg_options },
+            extra: ExtraCrateData { version, display_name, potential_cfg_options, target_kind },
             cfg_options,
             env,
             ws_data,
@@ -987,6 +1004,7 @@ mod tests {
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
             false,
+            Default::default(),
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1001,6 +1019,7 @@ mod tests {
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
             false,
+            Default::default(),
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1015,6 +1034,7 @@ mod tests {
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
             false,
+            Default::default(),
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1049,6 +1069,7 @@ mod tests {
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
             false,
+            Default::default(),
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1063,6 +1084,7 @@ mod tests {
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
             false,
+            Default::default(),
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1092,6 +1114,7 @@ mod tests {
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
             false,
+            Default::default(),
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1106,6 +1129,7 @@ mod tests {
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
             false,
+            Default::default(),
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1120,6 +1144,7 @@ mod tests {
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
             false,
+            Default::default(),
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1149,6 +1174,7 @@ mod tests {
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
             false,
+            Default::default(),
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1163,6 +1189,7 @@ mod tests {
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
             false,
+            Default::default(),
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );

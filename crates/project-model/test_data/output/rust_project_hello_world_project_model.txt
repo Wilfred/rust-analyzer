@@ -29,6 +29,7 @@
                 },
             ),
             potential_cfg_options: None,
+            target_kind: Lib,
         },
         cfg_options: CfgOptions(
             [

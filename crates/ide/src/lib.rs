@@ -272,6 +272,7 @@ impl Analysis {
             CrateOrigin::Local { repo: None, name: None },
             crate_attrs,
             false,
+            Default::default(),
             proc_macro_cwd,
             Arc::new(CrateWorkspaceData {
                 target: Err("fixture has no layout".into()),

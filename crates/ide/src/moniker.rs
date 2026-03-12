@@ -6,7 +6,7 @@ use core::fmt;
 use hir::{Adt, AsAssocItem, Crate, HirDisplay, MacroKind, Semantics};
 use ide_db::{
     FilePosition, RootDatabase,
-    base_db::{CrateOrigin, LangCrateOrigin},
+    base_db::{CrateOrigin, CrateTargetKind, LangCrateOrigin},
     defs::{Definition, IdentClass},
     helpers::pick_best_token,
 };
@@ -137,6 +137,7 @@ pub struct PackageInformation {
     pub name: String,
     pub repo: Option<String>,
     pub version: Option<String>,
+    pub target_kind: CrateTargetKind,
 }
 
 pub(crate) fn moniker(
@@ -390,7 +391,12 @@ fn def_to_non_local_moniker(
                     }),
                 ),
             };
-            PackageInformation { name: name.as_str().to_owned(), repo, version }
+            PackageInformation {
+                name: name.as_str().to_owned(),
+                repo,
+                version,
+                target_kind: krate.target_kind(db),
+            }
         },
     })
 }
@@ -489,7 +495,7 @@ pub mod module {
 }
 "#,
             "foo::module::func",
-            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
+            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0"), target_kind: Lib }"#,
             MonikerKind::Import,
         );
         check_moniker(
@@ -505,7 +511,7 @@ pub mod module {
 }
 "#,
             "foo::module::func",
-            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
+            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0"), target_kind: Lib }"#,
             MonikerKind::Export,
         );
     }
@@ -522,7 +528,7 @@ pub mod module {
 }
 "#,
             "foo::module::MyTrait::func",
-            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
+            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0"), target_kind: Lib }"#,
             MonikerKind::Export,
         );
     }
@@ -539,7 +545,7 @@ pub mod module {
 }
 "#,
             "foo::module::MyTrait::MY_CONST",
-            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
+            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0"), target_kind: Lib }"#,
             MonikerKind::Export,
         );
     }
@@ -556,7 +562,7 @@ pub mod module {
 }
 "#,
             "foo::module::MyTrait::MyType",
-            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
+            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0"), target_kind: Lib }"#,
             MonikerKind::Export,
         );
     }
@@ -577,7 +583,7 @@ pub mod module {
 }
 "#,
             "foo::module::impl::MyStruct::MyTrait::func",
-            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
+            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0"), target_kind: Lib }"#,
             MonikerKind::Export,
         );
     }
@@ -597,7 +603,7 @@ pub struct St {
 }
 "#,
             "foo::St::a",
-            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
+            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0"), target_kind: Lib }"#,
             MonikerKind::Import,
         );
     }
@@ -619,7 +625,7 @@ pub mod module {
 }
 "#,
             "foo::module::func",
-            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
+            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0"), target_kind: Lib }"#,
             MonikerKind::Export,
         );
     }
@@ -634,7 +640,7 @@ pub fn func() {
 }
 "#,
             "main::func",
-            r#"PackageInformation { name: "main", repo: None, version: None }"#,
+            r#"PackageInformation { name: "main", repo: None, version: None, target_kind: Lib }"#,
             MonikerKind::Export,
         );
     }
@@ -649,7 +655,7 @@ pub fn func() {
 }
 "#,
             "main::func",
-            r#"PackageInformation { name: "main", repo: None, version: None }"#,
+            r#"PackageInformation { name: "main", repo: None, version: None, target_kind: Lib }"#,
             MonikerKind::Export,
         );
     }

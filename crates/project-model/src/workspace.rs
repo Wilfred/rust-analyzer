@@ -7,7 +7,7 @@ use std::{collections::VecDeque, fmt, fs, iter, ops::Deref, sync, thread};
 
 use anyhow::Context;
 use base_db::{
-    CrateBuilderId, CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin,
+    CrateBuilderId, CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin, CrateTargetKind,
     CrateWorkspaceData, DependencyBuilder, Env, LangCrateOrigin, ProcMacroLoadingError,
     ProcMacroPaths, target::TargetLoadResult,
 };
@@ -1099,6 +1099,7 @@ fn project_json_to_crate_graph(
                     repository,
                     is_workspace_member,
                     proc_macro_cwd,
+                    build,
                     ..
                 },
                 file_id,
@@ -1168,6 +1169,7 @@ fn project_json_to_crate_graph(
                     },
                     crate_attrs.clone(),
                     *is_proc_macro,
+                    build.as_ref().map(|b| CrateTargetKind::from(b.target_kind)).unwrap_or_default(),
                     match proc_macro_cwd {
                         Some(path) => Arc::new(path.clone()),
                         None => project_root.clone(),
@@ -1475,6 +1477,7 @@ fn detached_file_to_crate_graph(
         },
         Vec::new(),
         false,
+        Default::default(),
         Arc::new(detached_file.parent().to_path_buf()),
         crate_ws_data,
     );
@@ -1599,6 +1602,20 @@ fn handle_rustc_crates(
     }
 }
 
+impl From<TargetKind> for CrateTargetKind {
+    fn from(kind: TargetKind) -> Self {
+        match kind {
+            TargetKind::Lib { .. } => CrateTargetKind::Lib,
+            TargetKind::Bin => CrateTargetKind::Bin,
+            TargetKind::Test => CrateTargetKind::Test,
+            TargetKind::Bench => CrateTargetKind::Bench,
+            TargetKind::Example => CrateTargetKind::Example,
+            TargetKind::BuildScript => CrateTargetKind::BuildScript,
+            TargetKind::Other => CrateTargetKind::Other,
+        }
+    }
+}
+
 fn add_target_crate_root(
     crate_graph: &mut CrateGraphBuilder,
     proc_macros: &mut ProcMacroPaths,
@@ -1656,6 +1673,7 @@ fn add_target_crate_root(
         origin,
         Vec::new(),
         matches!(kind, TargetKind::Lib { is_proc_macro: true }),
+        CrateTargetKind::from(kind),
         proc_macro_cwd,
         crate_ws_data,
     );
@@ -1840,6 +1858,7 @@ fn sysroot_to_crate_graph(
                         CrateOrigin::Lang(LangCrateOrigin::from(&*stitched[krate].name)),
                         Vec::new(),
                         false,
+                        Default::default(),
                         Arc::new(stitched[krate].root.parent().to_path_buf()),
                         crate_ws_data.clone(),
                     );

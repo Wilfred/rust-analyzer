@@ -40,6 +40,7 @@
                 },
             ),
             potential_cfg_options: None,
+            target_kind: Lib,
         },
         cfg_options: CfgOptions(
             [
@@ -125,6 +126,7 @@
                 },
             ),
             potential_cfg_options: None,
+            target_kind: Bin,
         },
         cfg_options: CfgOptions(
             [
@@ -210,6 +212,7 @@
                 },
             ),
             potential_cfg_options: None,
+            target_kind: Example,
         },
         cfg_options: CfgOptions(
             [
@@ -295,6 +298,7 @@
                 },
             ),
             potential_cfg_options: None,
+            target_kind: Test,
         },
         cfg_options: CfgOptions(
             [
@@ -376,6 +380,7 @@
                     ],
                 ),
             ),
+            target_kind: Lib,
         },
         cfg_options: CfgOptions(
             [
