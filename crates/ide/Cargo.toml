@@ -26,6 +26,7 @@ dot.workspace = true
 smallvec.workspace = true
 triomphe.workspace = true
 nohash-hasher.workspace = true
+rayon.workspace = true
 rustc_apfloat = "0.2.3"
 
 # local deps

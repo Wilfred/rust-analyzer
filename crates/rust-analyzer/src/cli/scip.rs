@@ -63,7 +63,6 @@ impl flags::Scip {
         )?;
         let host = AnalysisHost::with_database(db);
         let db = host.raw_database();
-        let analysis = host.analysis();
 
         let vendored_libs_config = if self.exclude_vendored_libraries {
             VendoredLibrariesConfig::Excluded
@@ -71,7 +70,7 @@ impl flags::Scip {
             VendoredLibrariesConfig::Included { workspace_root: &root.clone().into() }
         };
 
-        let si = StaticIndex::compute(&analysis, vendored_libs_config);
+        let si = StaticIndex::compute(db, vendored_libs_config);
 
         let metadata = scip_types::Metadata {
             version: scip_types::ProtocolVersion::UnspecifiedProtocolVersion.into(),
@@ -537,9 +536,8 @@ mod test {
     fn check_symbol(#[rust_analyzer::rust_fixture] ra_fixture: &str, expected: &str) {
         let (host, position) = position(ra_fixture);
 
-        let analysis = host.analysis();
         let si = StaticIndex::compute(
-            &analysis,
+            host.raw_database(),
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
@@ -905,9 +903,8 @@ pub mod example_mod {
         let change_fixture = ChangeFixture::parse(s);
         host.raw_database_mut().apply_change(change_fixture.change);
 
-        let analysis = host.analysis();
         let si = StaticIndex::compute(
-            &analysis,
+            host.raw_database(),
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
@@ -928,9 +925,8 @@ pub mod example_mod {
         let change_fixture = ChangeFixture::parse(s);
         host.raw_database_mut().apply_change(change_fixture.change);
 
-        let analysis = host.analysis();
         let si = StaticIndex::compute(
-            &analysis,
+            host.raw_database(),
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
