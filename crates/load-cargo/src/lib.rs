@@ -197,7 +197,9 @@ pub fn load_workspace_into_db(
     );
 
     if load_config.prefill_caches {
-        prime_caches::parallel_prime_caches(db, 1, &|_| ());
+        let num_threads =
+            std::thread::available_parallelism().map_or(1, |n| n.get());
+        prime_caches::parallel_prime_caches(db, num_threads, &|_| ());
     }
 
     Ok((vfs, proc_macro_server.and_then(Result::ok)))
