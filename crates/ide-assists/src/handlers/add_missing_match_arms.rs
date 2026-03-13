@@ -216,15 +216,26 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
         return None;
     }
 
+    // Collect missing patterns so we can count them for the label.
+    // having any hidden variants means that we need a catch-all arm
+    needs_catch_all_arm |= has_hidden_variants;
+
+    let missing_pats: Vec<(ast::Pat, bool)> = missing_pats.collect();
+    let visible_missing: Vec<&ast::Pat> =
+        missing_pats.iter().filter(|(_, hidden)| !hidden).map(|(pat, _)| pat).collect();
+
+    let label = match visible_missing.len() {
+        1 => format!("Add missing match arm `{}`", visible_missing[0]),
+        n => format!("Add {n} missing match arms"),
+    };
+
     acc.add(
         AssistId::quick_fix("add_missing_match_arms"),
-        "Fill match arms",
+        label,
         ctx.sema.original_range(match_expr.syntax()).range,
         |builder| {
-            // having any hidden variants means that we need a catch-all arm
-            needs_catch_all_arm |= has_hidden_variants;
-
             let missing_arms = missing_pats
+                .into_iter()
                 .filter(|(_, hidden)| {
                     // filter out hidden patterns because they're handled by the catch-all arm
                     !hidden
@@ -1649,8 +1660,8 @@ fn foo(t: Test) {
 
     #[test]
     fn lazy_computation() {
-        // Computing a single missing arm is enough to determine applicability of the assist.
-        cov_mark::check_count!(add_missing_match_arms_lazy_computation, 1);
+        // All missing arms are computed to build the label.
+        cov_mark::check_count!(add_missing_match_arms_lazy_computation, 4);
         check_assist_unresolved(
             add_missing_match_arms,
             r#"
