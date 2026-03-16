@@ -1036,6 +1036,7 @@ dependencies = [
  "profile",
  "pulldown-cmark",
  "pulldown-cmark-to-cmark",
+ "rayon",
  "rustc_apfloat",
  "smallvec",
  "span",
