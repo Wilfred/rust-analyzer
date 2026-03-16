@@ -2,7 +2,7 @@
 //! read-only code browsers and emitting LSIF
 
 use arrayvec::ArrayVec;
-use hir::{Crate, Module, Semantics, db::HirDatabase};
+use hir::{Crate, EditionedFileId, Module, Semantics, db::HirDatabase};
 use ide_db::{
     FileId, FileRange, FxHashMap, FxHashSet, MiniCore, RootDatabase,
     base_db::{RootQueryDb, SourceDatabase, VfsPath},
@@ -14,7 +14,7 @@ use syntax::{AstNode, SyntaxNode, SyntaxToken, TextRange};
 
 use crate::navigation_target::UpmappingResult;
 use crate::{
-    Analysis, Fold, HoverConfig, HoverResult, InlayHint, InlayHintsConfig, TryToNav,
+    Fold, HoverConfig, HoverResult, InlayHint, InlayHintsConfig, TryToNav,
     hover::{SubstTyLen, hover_for_definition},
     inlay_hints::{AdjustmentHintsMode, InlayFieldsToResolve},
     moniker::{MonikerResult, SymbolInformationKind, def_to_kind, def_to_moniker},
@@ -28,7 +28,6 @@ use crate::{
 pub struct StaticIndex<'a> {
     pub files: Vec<StaticIndexedFile>,
     pub tokens: TokenStore,
-    analysis: &'a Analysis,
     db: &'a RootDatabase,
     def_map: FxHashMap<Definition, TokenId>,
 }
@@ -159,49 +158,49 @@ pub enum VendoredLibrariesConfig<'a> {
 impl StaticIndex<'_> {
     fn add_file(&mut self, file_id: FileId) {
         let current_crate = crates_for(self.db, file_id).pop().map(Into::into);
-        let folds = self.analysis.folding_ranges(file_id).unwrap();
-        let inlay_hints = self
-            .analysis
-            .inlay_hints(
-                &InlayHintsConfig {
-                    render_colons: true,
-                    discriminant_hints: crate::DiscriminantHints::Fieldless,
-                    type_hints: true,
-                    sized_bound: false,
-                    parameter_hints: true,
-                    parameter_hints_for_missing_arguments: false,
-                    generic_parameter_hints: crate::GenericParameterHints {
-                        type_hints: false,
-                        lifetime_hints: false,
-                        const_hints: true,
-                    },
-                    chaining_hints: true,
-                    closure_return_type_hints: crate::ClosureReturnTypeHints::WithBlock,
-                    lifetime_elision_hints: crate::LifetimeElisionHints::Never,
-                    adjustment_hints: crate::AdjustmentHints::Never,
-                    adjustment_hints_disable_reborrows: true,
-                    adjustment_hints_mode: AdjustmentHintsMode::Prefix,
-                    adjustment_hints_hide_outside_unsafe: false,
-                    implicit_drop_hints: false,
-                    implied_dyn_trait_hints: false,
-                    hide_inferred_type_hints: false,
-                    hide_named_constructor_hints: false,
-                    hide_closure_initialization_hints: false,
-                    hide_closure_parameter_hints: false,
-                    closure_style: hir::ClosureStyle::ImplFn,
-                    param_names_for_lifetime_elision_hints: false,
-                    binding_mode_hints: false,
-                    max_length: Some(25),
-                    closure_capture_hints: false,
-                    closing_brace_hints_min_lines: Some(25),
-                    fields_to_resolve: InlayFieldsToResolve::empty(),
-                    range_exclusive_hints: false,
-                    minicore: MiniCore::default(),
+
+        let editioned_file_id = EditionedFileId::current_edition(self.db, file_id);
+        let folds = crate::folding_ranges::folding_ranges(&self.db.parse(editioned_file_id).tree());
+        let inlay_hints = crate::inlay_hints::inlay_hints(
+            self.db,
+            file_id,
+            None,
+            &InlayHintsConfig {
+                render_colons: true,
+                discriminant_hints: crate::DiscriminantHints::Fieldless,
+                type_hints: true,
+                sized_bound: false,
+                parameter_hints: true,
+                parameter_hints_for_missing_arguments: false,
+                generic_parameter_hints: crate::GenericParameterHints {
+                    type_hints: false,
+                    lifetime_hints: false,
+                    const_hints: true,
                 },
-                file_id,
-                None,
-            )
-            .unwrap();
+                chaining_hints: true,
+                closure_return_type_hints: crate::ClosureReturnTypeHints::WithBlock,
+                lifetime_elision_hints: crate::LifetimeElisionHints::Never,
+                adjustment_hints: crate::AdjustmentHints::Never,
+                adjustment_hints_disable_reborrows: true,
+                adjustment_hints_mode: AdjustmentHintsMode::Prefix,
+                adjustment_hints_hide_outside_unsafe: false,
+                implicit_drop_hints: false,
+                implied_dyn_trait_hints: false,
+                hide_inferred_type_hints: false,
+                hide_named_constructor_hints: false,
+                hide_closure_initialization_hints: false,
+                hide_closure_parameter_hints: false,
+                closure_style: hir::ClosureStyle::ImplFn,
+                param_names_for_lifetime_elision_hints: false,
+                binding_mode_hints: false,
+                max_length: Some(25),
+                closure_capture_hints: false,
+                closing_brace_hints_min_lines: Some(25),
+                fields_to_resolve: InlayFieldsToResolve::empty(),
+                range_exclusive_hints: false,
+                minicore: MiniCore::default(),
+            },
+        );
         // hovers
         let sema = hir::Semantics::new(self.db);
         let root = sema.parse_guess_edition(file_id).syntax().clone();
@@ -298,19 +297,18 @@ impl StaticIndex<'_> {
     }
 
     pub fn compute<'a>(
-        analysis: &'a Analysis,
+        db: &'a RootDatabase,
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) -> StaticIndex<'a> {
-        let db = &analysis.db;
         hir::attach_db(db, || {
             let work = all_modules(db).into_iter().filter(|module| {
                 let file_id = module.definition_source_file_id(db).original_file(db);
                 let source_root =
-                    db.file_source_root(file_id.file_id(&analysis.db)).source_root_id(db);
+                    db.file_source_root(file_id.file_id(db)).source_root_id(db);
                 let source_root = db.source_root(source_root).source_root(db);
                 let is_vendored = match vendored_libs_config {
                     VendoredLibrariesConfig::Included { workspace_root } => source_root
-                        .path_for_file(&file_id.file_id(&analysis.db))
+                        .path_for_file(&file_id.file_id(db))
                         .is_some_and(|module_path| module_path.starts_with(workspace_root)),
                     VendoredLibrariesConfig::Excluded => false,
                 };
@@ -320,14 +318,13 @@ impl StaticIndex<'_> {
             let mut this = StaticIndex {
                 files: vec![],
                 tokens: Default::default(),
-                analysis,
                 db,
                 def_map: Default::default(),
             };
             let mut visited_files = FxHashSet::default();
             for module in work {
                 let file_id =
-                    module.definition_source_file_id(db).original_file(db).file_id(&analysis.db);
+                    module.definition_source_file_id(db).original_file(db).file_id(db);
                 if visited_files.contains(&file_id) {
                     continue;
                 }
@@ -342,7 +339,7 @@ impl StaticIndex<'_> {
 #[cfg(test)]
 mod tests {
     use crate::{StaticIndex, fixture};
-    use ide_db::{FileRange, FxHashMap, FxHashSet, base_db::VfsPath};
+    use ide_db::{FileRange, FxHashMap, FxHashSet, RootDatabase, base_db::VfsPath};
     use syntax::TextSize;
 
     use super::VendoredLibrariesConfig;
@@ -352,7 +349,8 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let db: &RootDatabase = &analysis.db;
+        let s = StaticIndex::compute(db, vendored_libs_config);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for f in s.files {
             for (range, _) in f.tokens {
@@ -378,7 +376,8 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let db: &RootDatabase = &analysis.db;
+        let s = StaticIndex::compute(db, vendored_libs_config);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for (_, t) in s.tokens.iter() {
             if let Some(t) = t.definition {
@@ -403,7 +402,8 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let db: &RootDatabase = &analysis.db;
+        let s = StaticIndex::compute(db, vendored_libs_config);
         let mut range_set: FxHashMap<_, i32> = ranges.iter().map(|it| (it.0, 0)).collect();
 
         // Make sure that all references have at least one range. We use a HashMap instead of a
