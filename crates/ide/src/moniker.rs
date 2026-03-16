@@ -332,7 +332,7 @@ fn def_to_non_local_moniker(
                             }
                         }
                         _ => {
-                            tracing::error!(?def, "Encountered enclosing definition with no name");
+                            tracing::debug!(?def, "Encountered enclosing definition with no name");
                         }
                     }
                 }
