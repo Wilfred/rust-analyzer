@@ -10,6 +10,7 @@ use ide_db::{
     documentation::Documentation,
     famous_defs::FamousDefs,
 };
+use rayon::prelude::*;
 use syntax::{AstNode, SyntaxNode, SyntaxToken, TextRange};
 
 use crate::navigation_target::UpmappingResult;
@@ -25,11 +26,9 @@ use crate::{
 ///
 /// The intended use-case is powering read-only code browsers and emitting LSIF/SCIP.
 #[derive(Debug)]
-pub struct StaticIndex<'a> {
+pub struct StaticIndex {
     pub files: Vec<StaticIndexedFile>,
     pub tokens: TokenStore,
-    db: &'a RootDatabase,
-    def_map: FxHashMap<Definition, TokenId>,
 }
 
 #[derive(Debug)]
@@ -155,152 +154,160 @@ pub enum VendoredLibrariesConfig<'a> {
     Excluded,
 }
 
-impl StaticIndex<'_> {
-    fn add_file(&mut self, file_id: FileId) {
-        let current_crate = crates_for(self.db, file_id).pop().map(Into::into);
+/// Per-file token data computed during the parallel phase.
+struct FileTokenData {
+    range: TextRange,
+    def: Definition,
+    data: TokenStaticData,
+    is_definition: bool,
+}
 
-        let editioned_file_id = EditionedFileId::current_edition(self.db, file_id);
-        let folds = crate::folding_ranges::folding_ranges(&self.db.parse(editioned_file_id).tree());
-        let inlay_hints = crate::inlay_hints::inlay_hints(
-            self.db,
-            file_id,
-            None,
-            &InlayHintsConfig {
-                render_colons: true,
-                discriminant_hints: crate::DiscriminantHints::Fieldless,
-                type_hints: true,
-                sized_bound: false,
-                parameter_hints: true,
-                parameter_hints_for_missing_arguments: false,
-                generic_parameter_hints: crate::GenericParameterHints {
-                    type_hints: false,
-                    lifetime_hints: false,
-                    const_hints: true,
-                },
-                chaining_hints: true,
-                closure_return_type_hints: crate::ClosureReturnTypeHints::WithBlock,
-                lifetime_elision_hints: crate::LifetimeElisionHints::Never,
-                adjustment_hints: crate::AdjustmentHints::Never,
-                adjustment_hints_disable_reborrows: true,
-                adjustment_hints_mode: AdjustmentHintsMode::Prefix,
-                adjustment_hints_hide_outside_unsafe: false,
-                implicit_drop_hints: false,
-                implied_dyn_trait_hints: false,
-                hide_inferred_type_hints: false,
-                hide_named_constructor_hints: false,
-                hide_closure_initialization_hints: false,
-                hide_closure_parameter_hints: false,
-                closure_style: hir::ClosureStyle::ImplFn,
-                param_names_for_lifetime_elision_hints: false,
-                binding_mode_hints: false,
-                max_length: Some(25),
-                closure_capture_hints: false,
-                closing_brace_hints_min_lines: Some(25),
-                fields_to_resolve: InlayFieldsToResolve::empty(),
-                range_exclusive_hints: false,
-                minicore: MiniCore::default(),
+/// Result of computing a single file's data (parallel phase).
+struct FileComputeResult {
+    file_id: FileId,
+    folds: Vec<Fold>,
+    inlay_hints: Vec<InlayHint>,
+    tokens: Vec<FileTokenData>,
+}
+
+fn compute_file(db: &RootDatabase, file_id: FileId) -> FileComputeResult {
+    let current_crate = crates_for(db, file_id).pop().map(Into::into);
+
+    let editioned_file_id = EditionedFileId::current_edition(db, file_id);
+    let folds = crate::folding_ranges::folding_ranges(&db.parse(editioned_file_id).tree());
+    let inlay_hints = crate::inlay_hints::inlay_hints(
+        db,
+        file_id,
+        None,
+        &InlayHintsConfig {
+            render_colons: true,
+            discriminant_hints: crate::DiscriminantHints::Fieldless,
+            type_hints: true,
+            sized_bound: false,
+            parameter_hints: true,
+            parameter_hints_for_missing_arguments: false,
+            generic_parameter_hints: crate::GenericParameterHints {
+                type_hints: false,
+                lifetime_hints: false,
+                const_hints: true,
             },
-        );
-        // hovers
-        let sema = hir::Semantics::new(self.db);
-        let root = sema.parse_guess_edition(file_id).syntax().clone();
-        let edition = sema.attach_first_edition(file_id).edition(sema.db);
-        let display_target = match sema.first_crate(file_id) {
-            Some(krate) => krate.to_display_target(sema.db),
-            None => return,
-        };
-        let tokens = root.descendants_with_tokens().filter_map(|it| match it {
-            syntax::NodeOrToken::Node(_) => None,
-            syntax::NodeOrToken::Token(it) => Some(it),
-        });
-        let hover_config = HoverConfig {
-            links_in_hover: true,
-            memory_layout: None,
-            documentation: true,
-            keywords: true,
-            format: crate::HoverDocFormat::Markdown,
-            max_trait_assoc_items_count: None,
-            max_fields_count: Some(5),
-            max_enum_variants_count: Some(5),
-            max_subst_ty_len: SubstTyLen::Unlimited,
-            show_drop_glue: true,
+            chaining_hints: true,
+            closure_return_type_hints: crate::ClosureReturnTypeHints::WithBlock,
+            lifetime_elision_hints: crate::LifetimeElisionHints::Never,
+            adjustment_hints: crate::AdjustmentHints::Never,
+            adjustment_hints_disable_reborrows: true,
+            adjustment_hints_mode: AdjustmentHintsMode::Prefix,
+            adjustment_hints_hide_outside_unsafe: false,
+            implicit_drop_hints: false,
+            implied_dyn_trait_hints: false,
+            hide_inferred_type_hints: false,
+            hide_named_constructor_hints: false,
+            hide_closure_initialization_hints: false,
+            hide_closure_parameter_hints: false,
+            closure_style: hir::ClosureStyle::ImplFn,
+            param_names_for_lifetime_elision_hints: false,
+            binding_mode_hints: false,
+            max_length: Some(25),
+            closure_capture_hints: false,
+            closing_brace_hints_min_lines: Some(25),
+            fields_to_resolve: InlayFieldsToResolve::empty(),
+            range_exclusive_hints: false,
             minicore: MiniCore::default(),
-        };
-        let mut result = StaticIndexedFile { file_id, inlay_hints, folds, tokens: vec![] };
+        },
+    );
 
-        let mut add_token = |def: Definition, range: TextRange, scope_node: &SyntaxNode| {
-            let id = if let Some(it) = self.def_map.get(&def) {
-                *it
-            } else {
-                let it = self.tokens.insert(TokenStaticData {
-                    documentation: documentation_for_definition(&sema, def, scope_node),
-                    hover: Some(hover_for_definition(
-                        &sema,
-                        file_id,
-                        def,
-                        None,
-                        scope_node,
-                        None,
-                        false,
-                        &hover_config,
-                        edition,
-                        display_target,
-                    )),
-                    definition: def.try_to_nav(&sema).map(UpmappingResult::call_site).map(|it| {
-                        FileRange { file_id: it.file_id, range: it.focus_or_full_range() }
-                    }),
-                    definition_body: def
-                        .try_to_nav(&sema)
-                        .map(UpmappingResult::call_site)
-                        .map(|it| FileRange { file_id: it.file_id, range: it.full_range }),
-                    references: vec![],
-                    moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
-                    display_name: def
-                        .name(self.db)
-                        .map(|name| name.display(self.db, edition).to_string()),
-                    signature: Some(def.label(self.db, display_target)),
-                    kind: def_to_kind(self.db, def),
-                });
-                self.def_map.insert(def, it);
-                it
-            };
-            let token = self.tokens.get_mut(id).unwrap();
-            token.references.push(ReferenceData {
-                range: FileRange { range, file_id },
-                is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
-                    Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
-                    None => false,
-                },
-            });
-            result.tokens.push((range, id));
-        };
-
-        if let Some(module) = sema.file_to_module_def(file_id) {
-            let def = Definition::Module(module);
-            let range = root.text_range();
-            add_token(def, range, &root);
+    let sema = Semantics::new(db);
+    let root = sema.parse_guess_edition(file_id).syntax().clone();
+    let edition = sema.attach_first_edition(file_id).edition(sema.db);
+    let display_target = match sema.first_crate(file_id) {
+        Some(krate) => krate.to_display_target(sema.db),
+        None => {
+            return FileComputeResult { file_id, folds, inlay_hints, tokens: vec![] };
         }
+    };
+    let syntax_tokens = root.descendants_with_tokens().filter_map(|it| match it {
+        syntax::NodeOrToken::Node(_) => None,
+        syntax::NodeOrToken::Token(it) => Some(it),
+    });
+    let hover_config = HoverConfig {
+        links_in_hover: true,
+        memory_layout: None,
+        documentation: true,
+        keywords: true,
+        format: crate::HoverDocFormat::Markdown,
+        max_trait_assoc_items_count: None,
+        max_fields_count: Some(5),
+        max_enum_variants_count: Some(5),
+        max_subst_ty_len: SubstTyLen::Unlimited,
+        show_drop_glue: true,
+        minicore: MiniCore::default(),
+    };
 
-        for token in tokens {
-            let range = token.text_range();
-            let node = token.parent().unwrap();
-            match hir::attach_db(self.db, || get_definitions(&sema, token.clone())) {
-                Some(defs) => {
-                    for (def, _) in defs {
-                        add_token(def, range, &node);
-                    }
-                }
-                None => continue,
-            };
-        }
-        self.files.push(result);
+    let mut tokens = Vec::new();
+
+    let mut collect_token = |def: Definition, range: TextRange, scope_node: &SyntaxNode| {
+        let is_definition = match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
+            Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
+            None => false,
+        };
+        let data = TokenStaticData {
+            documentation: documentation_for_definition(&sema, def, scope_node),
+            hover: Some(hover_for_definition(
+                &sema,
+                file_id,
+                def,
+                None,
+                scope_node,
+                None,
+                false,
+                &hover_config,
+                edition,
+                display_target,
+            )),
+            definition: def.try_to_nav(&sema).map(UpmappingResult::call_site).map(|it| {
+                FileRange { file_id: it.file_id, range: it.focus_or_full_range() }
+            }),
+            definition_body: def
+                .try_to_nav(&sema)
+                .map(UpmappingResult::call_site)
+                .map(|it| FileRange { file_id: it.file_id, range: it.full_range }),
+            references: vec![],
+            moniker: current_crate.and_then(|cc| def_to_moniker(db, def, cc)),
+            display_name: def.name(db).map(|name| name.display(db, edition).to_string()),
+            signature: Some(def.label(db, display_target)),
+            kind: def_to_kind(db, def),
+        };
+        tokens.push(FileTokenData { range, def, data, is_definition });
+    };
+
+    if let Some(module) = sema.file_to_module_def(file_id) {
+        let def = Definition::Module(module);
+        let range = root.text_range();
+        collect_token(def, range, &root);
     }
 
-    pub fn compute<'a>(
-        db: &'a RootDatabase,
+    for token in syntax_tokens {
+        let range = token.text_range();
+        let node = token.parent().unwrap();
+        match hir::attach_db(db, || get_definitions(&sema, token.clone())) {
+            Some(defs) => {
+                for (def, _) in defs {
+                    collect_token(def, range, &node);
+                }
+            }
+            None => continue,
+        };
+    }
+
+    FileComputeResult { file_id, folds, inlay_hints, tokens }
+}
+
+impl StaticIndex {
+    pub fn compute(
+        db: &RootDatabase,
         vendored_libs_config: VendoredLibrariesConfig<'_>,
-    ) -> StaticIndex<'a> {
-        hir::attach_db(db, || {
+    ) -> StaticIndex {
+        let file_ids: Vec<FileId> = hir::attach_db(db, || {
             let work = all_modules(db).into_iter().filter(|module| {
                 let file_id = module.definition_source_file_id(db).original_file(db);
                 let source_root =
@@ -315,24 +322,59 @@ impl StaticIndex<'_> {
 
                 !source_root.is_library || is_vendored
             });
-            let mut this = StaticIndex {
-                files: vec![],
-                tokens: Default::default(),
-                db,
-                def_map: Default::default(),
-            };
             let mut visited_files = FxHashSet::default();
+            let mut file_ids = Vec::new();
             for module in work {
                 let file_id =
                     module.definition_source_file_id(db).original_file(db).file_id(db);
-                if visited_files.contains(&file_id) {
-                    continue;
+                if visited_files.insert(file_id) {
+                    file_ids.push(file_id);
                 }
-                this.add_file(file_id);
-                visited_files.insert(file_id);
             }
-            this
-        })
+            file_ids
+        });
+
+        // Parallel phase: compute per-file data
+        let file_results: Vec<FileComputeResult> = file_ids
+            .par_iter()
+            .map_with(db.clone(), |snap, &file_id| {
+                hir::attach_db(snap, || compute_file(snap, file_id))
+            })
+            .collect();
+
+        // Sequential merge phase: deduplicate definitions, assign TokenIds
+        let mut tokens = TokenStore::default();
+        let mut def_map: FxHashMap<Definition, TokenId> = FxHashMap::default();
+        let mut files = Vec::with_capacity(file_results.len());
+
+        for file_result in file_results {
+            let mut file_tokens = Vec::with_capacity(file_result.tokens.len());
+
+            for file_token in file_result.tokens {
+                let id = if let Some(&existing_id) = def_map.get(&file_token.def) {
+                    existing_id
+                } else {
+                    let new_id = tokens.insert(file_token.data);
+                    def_map.insert(file_token.def, new_id);
+                    new_id
+                };
+                let token = tokens.get_mut(id).unwrap();
+                token.references.push(ReferenceData {
+                    range: FileRange { range: file_token.range, file_id: file_result.file_id },
+                    is_definition: file_token.is_definition,
+                });
+                file_tokens.push((file_token.range, id));
+            }
+
+            files.push(StaticIndexedFile {
+                file_id: file_result.file_id,
+                folds: file_result.folds,
+                inlay_hints: file_result.inlay_hints,
+                tokens: file_tokens,
+            });
+        }
+
+        StaticIndex { files, tokens }
     }
 }
 
