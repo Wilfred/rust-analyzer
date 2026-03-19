@@ -533,9 +533,10 @@ mod test {
         (host, position)
     }
 
-    /// If expected == "", then assert that there are no symbols (this is basically local symbol)
     #[track_caller]
-    fn check_symbol(#[rust_analyzer::rust_fixture] ra_fixture: &str, expected: &str) {
+    fn symbol_info(
+        #[rust_analyzer::rust_fixture] ra_fixture: &str,
+    ) -> scip_types::SymbolInformation {
         let (host, position) = position(ra_fixture);
 
         let analysis = host.analysis();
@@ -548,48 +549,55 @@ mod test {
 
         let FilePosition { file_id, offset } = position;
 
-        let mut found_symbol = None;
+        let mut token_id = None;
         for file in &si.files {
             if file.file_id != file_id {
                 continue;
             }
             for &(range, id) in &file.tokens {
-                // check if cursor is within token, ignoring token for the module defined by the file (whose range is the whole file)
                 if range.start() != TextSize::from(0) && range.contains(offset - TextSize::from(1))
                 {
-                    let token = si.tokens.get(id).unwrap();
-                    found_symbol = match token.moniker.as_ref() {
-                        None => None,
-                        Some(MonikerResult::Moniker(moniker)) => {
-                            Some(scip::symbol::format_symbol(moniker_to_symbol(moniker)))
-                        }
-                        Some(MonikerResult::Local { enclosing_moniker: Some(moniker) }) => {
-                            Some(format!(
-                                "local enclosed by {}",
-                                scip::symbol::format_symbol(moniker_to_symbol(moniker))
-                            ))
-                        }
-                        Some(MonikerResult::Local { enclosing_moniker: None }) => {
-                            Some("unenclosed local".to_owned())
-                        }
-                    };
+                    token_id = Some(id);
                     break;
                 }
             }
         }
 
-        if expected.is_empty() {
-            assert!(found_symbol.is_none(), "must have no symbols {found_symbol:?}");
-            return;
-        }
+        let token_id = token_id.expect("expected a token at cursor position");
+        let token = si.tokens.get(token_id).unwrap();
+        let mut symbol_gen = SymbolGenerator::default();
+        let token_symbols =
+            symbol_gen.token_symbols(token_id, token).expect("expected TokenSymbols at cursor");
 
-        assert!(found_symbol.is_some(), "must have one symbol {found_symbol:?}");
-        assert_eq!(found_symbol.unwrap(), expected);
+        compute_symbol_info(token_symbols.symbol, token_symbols.enclosing_symbol, token)
+    }
+
+    #[track_caller]
+    fn check_non_local_symbol(#[rust_analyzer::rust_fixture] ra_fixture: &str, symbol: &str) {
+        let info = symbol_info(ra_fixture);
+
+        assert_eq!(info.symbol, symbol);
+        assert_eq!(
+            info.enclosing_symbol, "",
+            "Non-local symbols should not have an enclosing symbol"
+        );
+    }
+
+    #[track_caller]
+    fn check_local_symbol(
+        #[rust_analyzer::rust_fixture] ra_fixture: &str,
+        symbol: &str,
+        enclosing_symbol: &str,
+    ) {
+        let info = symbol_info(ra_fixture);
+
+        assert_eq!(info.symbol, symbol);
+        assert_eq!(info.enclosing_symbol, enclosing_symbol,);
     }
 
     #[test]
     fn basic() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
 //- /workspace/lib.rs crate:main deps:foo
 use foo::example_mod::func;
@@ -607,7 +615,7 @@ pub mod example_mod {
 
     #[test]
     fn operator_overload() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
 //- minicore: add
 //- /workspace/lib.rs crate:main
@@ -630,7 +638,7 @@ fn main() {
 
     #[test]
     fn symbol_for_trait() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
 //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
 pub mod module {
@@ -645,7 +653,7 @@ pub mod module {
 
     #[test]
     fn symbol_for_trait_alias() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
 //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
 #![feature(trait_alias)]
@@ -660,7 +668,7 @@ pub mod module {
 
     #[test]
     fn symbol_for_trait_constant() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
     //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
     pub mod module {
@@ -675,7 +683,7 @@ pub mod module {
 
     #[test]
     fn symbol_for_trait_type() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
     //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
     pub mod module {
@@ -690,7 +698,7 @@ pub mod module {
 
     #[test]
     fn symbol_for_trait_impl_function() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
     //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
     pub mod module {
@@ -711,7 +719,7 @@ pub mod module {
 
     #[test]
     fn symbol_for_field() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
     //- /workspace/lib.rs crate:main deps:foo
     use foo::St;
@@ -729,7 +737,7 @@ pub mod module {
 
     #[test]
     fn symbol_for_param() {
-        check_symbol(
+        check_local_symbol(
             r#"
 //- /workspace/lib.rs crate:main deps:foo
 use foo::example_mod::func;
@@ -741,13 +749,14 @@ pub mod example_mod {
     pub fn func(x$0: usize) {}
 }
 "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 example_mod/func().",
+            "local 0",
+            "rust-analyzer cargo foo 0.1.0 example_mod/func().",
         );
     }
 
     #[test]
     fn symbol_for_closure_param() {
-        check_symbol(
+        check_local_symbol(
             r#"
 //- /workspace/lib.rs crate:main deps:foo
 use foo::example_mod::func;
@@ -761,13 +770,14 @@ pub mod example_mod {
     }
 }
 "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 example_mod/func().",
+            "local 0",
+            "rust-analyzer cargo foo 0.1.0 example_mod/func().",
         );
     }
 
     #[test]
     fn local_symbol_for_local() {
-        check_symbol(
+        check_local_symbol(
             r#"
     //- /workspace/lib.rs crate:main deps:foo
     use foo::module::func;
@@ -781,13 +791,14 @@ pub mod example_mod {
         }
     }
     "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 module/func().",
+            "local 0",
+            "rust-analyzer cargo foo 0.1.0 module/func().",
         );
     }
 
     #[test]
     fn global_symbol_for_pub_struct() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
     //- /workspace/lib.rs crate:main
     mod foo;
@@ -806,7 +817,7 @@ pub mod example_mod {
 
     #[test]
     fn global_symbol_for_pub_struct_reference() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
     //- /workspace/lib.rs crate:main
     mod foo;
@@ -825,7 +836,7 @@ pub mod example_mod {
 
     #[test]
     fn symbol_for_type_alias() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
     //- /workspace/lib.rs crate:main
     pub type MyTypeAlias$0 = u8;
@@ -837,7 +848,7 @@ pub mod example_mod {
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_nested_function() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
@@ -853,7 +864,7 @@ pub mod example_mod {
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_struct_in_function() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
@@ -869,7 +880,7 @@ pub mod example_mod {
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_const_in_function() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
@@ -885,7 +896,7 @@ pub mod example_mod {
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_static_in_function() {
-        check_symbol(
+        check_non_local_symbol(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
@@ -900,25 +911,15 @@ pub mod example_mod {
 
     #[test]
     fn documentation_matches_doc_comment() {
-        let s = "/// foo\nfn bar() {}";
-
-        let mut host = AnalysisHost::default();
-        let change_fixture = ChangeFixture::parse(s);
-        host.raw_database_mut().apply_change(change_fixture.change);
-
-        let analysis = host.analysis();
-        let si = StaticIndex::compute(
-            &analysis,
-            VendoredLibrariesConfig::Included {
-                workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
-            },
+        let info = symbol_info(
+            r#"
+//- /workspace/lib.rs crate:main
+/// Do stuff
+fn foo$0() {}
+"#,
         );
 
-        let file = si.files.first().unwrap();
-        let (_, token_id) = file.tokens.get(1).unwrap(); // first token is file module, second is `bar`
-        let token = si.tokens.get(*token_id).unwrap();
-
-        assert_eq!(token.documentation.as_ref().map(|d| d.as_str()), Some("foo"));
+        assert_eq!(info.documentation, vec!["Do stuff".to_owned()]);
     }
 
     #[test]
