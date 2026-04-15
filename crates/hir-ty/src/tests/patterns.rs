@@ -1306,3 +1306,40 @@ fn bar() {
     "#,
     );
 }
+
+#[test]
+fn generic_struct_pat_with_ref_field_no_panic() {
+    // Regression test: destructuring a generic struct with a reference field
+    // should not panic when instantiating field types. Previously, if the type
+    // could not be resolved as an ADT, `instantiate` was called with empty args
+    // on a field type containing parameters (e.g., `&'a mut T`), causing a panic
+    // in `Binder::instantiate`.
+    check_types(
+        r#"
+struct Wrapper<'a, T> {
+    inner: &'a mut T,
+}
+
+fn takes_wrapper(w: Wrapper<'_, i32>) {
+    let Wrapper { inner } = w;
+    inner;
+  //^^^^^ &'? mut i32
+}
+    "#,
+    );
+}
+
+#[test]
+fn generic_tuple_struct_pat_with_ref_field_no_panic() {
+    check_types(
+        r#"
+struct Wrapper<'a, T>(&'a mut T);
+
+fn takes_wrapper(w: Wrapper<'_, i32>) {
+    let Wrapper(inner) = w;
+    inner;
+  //^^^^^ &'? mut i32
+}
+    "#,
+    );
+}

@@ -86,7 +86,7 @@ impl<'db> InferenceContext<'_, 'db> {
                                 let f = field_types[local_id].get();
                                 let expected_ty = match substs {
                                     Some(substs) => f.instantiate(self.interner(), substs),
-                                    None => f.instantiate(self.interner(), &[]),
+                                    None => self.err_ty(),
                                 };
                                 self.process_remote_user_written_ty(expected_ty)
                             }
@@ -150,7 +150,7 @@ impl<'db> InferenceContext<'_, 'db> {
                                 let f = field_types[local_id].get();
                                 let expected_ty = match substs {
                                     Some(substs) => f.instantiate(self.interner(), substs),
-                                    None => f.instantiate(self.interner(), &[]),
+                                    None => self.err_ty(),
                                 };
                                 self.process_remote_user_written_ty(expected_ty)
                             }
