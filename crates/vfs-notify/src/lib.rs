@@ -133,6 +133,7 @@ impl NotifyActor {
 
                         let (entry_tx, entry_rx) = unbounded();
                         let (watch_tx, watch_rx) = unbounded();
+                        let (seen_tx, seen_rx) = unbounded();
                         let processed = AtomicUsize::new(0);
 
                         config.load.into_par_iter().enumerate().for_each(|(i, entry)| {
@@ -155,6 +156,11 @@ impl NotifyActor {
                                     });
                                 },
                             );
+                            for (path, contents) in &files {
+                                if contents.is_some() {
+                                    _ = seen_tx.send(path.clone());
+                                }
+                            }
                             self.send(loader::Message::Loaded { files });
                             self.send(loader::Message::Progress {
                                 n_total,
@@ -182,6 +188,9 @@ impl NotifyActor {
                                 }
                             }
                         }
+
+                        drop(seen_tx);
+                        self.seen_paths.extend(seen_rx);
 
                         self.send(loader::Message::Progress {
                             n_total,
