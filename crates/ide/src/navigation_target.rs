@@ -18,7 +18,7 @@ use ide_db::{
 };
 use stdx::never;
 use syntax::{
-    AstNode, AstPtr, SyntaxNode, TextRange,
+    AstNode, AstPtr, AstToken, SyntaxKind, SyntaxNode, SyntaxToken, TextRange,
     ast::{self, HasName},
 };
 
@@ -448,6 +448,8 @@ where
             NavigationTarget::from_named_with_range(
                 db,
                 src.map(|(full_range, node)| {
+                    let full_range =
+                        node.as_ref().map_or(full_range, |node| range_trim_trivia(node.syntax()));
                     (
                         full_range,
                         node.and_then(|node| {
@@ -502,6 +504,8 @@ impl TryToNav for hir::Impl {
     ) -> Option<UpmappingResult<NavigationTarget>> {
         let db = sema.db;
         let InFile { file_id, value: (full_range, source) } = self.source_with_range(db)?;
+        let full_range =
+            source.as_ref().map_or(full_range, |source| range_trim_trivia(source.syntax()));
 
         Some(
             orig_range_with_focus_r(
@@ -928,6 +932,49 @@ fn orig_range_with_focus(
         value.text_range(),
         name.map(|it| it.syntax().text_range()),
     )
+}
+
+/// Return the range of `value` without leading/trailing trivia.
+fn range_trim_trivia(value: &SyntaxNode) -> TextRange {
+    let mut first = value.first_child_or_token();
+    while let Some(element) = &first {
+        let Some(token) = element.as_token() else { break };
+        if !is_trivia_not_doc_comment(token) {
+            break;
+        }
+        first = element.next_sibling_or_token();
+    }
+
+    let mut last = value.last_child_or_token();
+    while let Some(element) = &last {
+        let Some(token) = element.as_token() else { break };
+        if !is_trivia(token) {
+            break;
+        }
+        last = element.prev_sibling_or_token();
+    }
+
+    match (first, last) {
+        (Some(first), Some(last)) => {
+            TextRange::new(first.text_range().start(), last.text_range().end())
+        }
+        _ => value.text_range(),
+    }
+}
+
+fn is_trivia_not_doc_comment(token: &SyntaxToken) -> bool {
+    match token.kind() {
+        SyntaxKind::WHITESPACE => true,
+        SyntaxKind::COMMENT => match ast::Comment::cast(token.clone()) {
+            Some(comment) => !comment.is_outer(),
+            None => true,
+        },
+        _ => false,
+    }
+}
+
+fn is_trivia(token: &SyntaxToken) -> bool {
+    matches!(token.kind(), SyntaxKind::WHITESPACE | SyntaxKind::COMMENT)
 }
 
 pub(crate) fn orig_range_with_focus_r(
