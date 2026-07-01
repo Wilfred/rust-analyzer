@@ -1,5 +1,11 @@
 # Panics reachable from legitimate intermediate states of user code
 
+> Status: rebased onto master `28ccb8be` and re-verified. **16 of 17 findings
+> still reproduce.** Finding #6 (`unwrap_return_type` on a `match` tail) was
+> fixed independently on master by a rewrite of that assist — its repro test
+> now passes. All other repros still panic/crash (verified against
+> rowan-0.15.19).
+
 17 verified panics/crashes in rust-analyzer that fire on code states a user
 passes through while typing (unclosed delimiters, half-typed literals,
 out-of-bounds field access, recursive definitions), plus a few on ordinary
@@ -33,7 +39,7 @@ Ranked by (blast radius on a passive IDE feature that runs unprompted) ×
 | 3 | **Critical** | `hir/src/lib.rs:5219` `must_unify` | **completions** (term search) | typed hole / any expr completion near items of different owners |
 | 4 | **Critical** | `layout_of_adt` ↔ `layout_of_ty` **stack overflow** (uncatchable, aborts process) | hover (memory layout) | `struct A<T>(B<fn(T)>); struct B<T>(A<fn(T)>);` polymorphic recursion |
 | 5 | **High** | `ide-db/src/source_change.rs:80` `never!` | **rename** | rename `self`→name with a chained-call site; complete code |
-| 6 | **High** | `unwrap_return_type.rs:120` | assist (shown in lightbulb) | `-> Option<()>` with a `match` tail; **complete code** |
+| 6 | ~~High~~ **FIXED on master** | `unwrap_return_type.rs:120` | assist (shown in lightbulb) | `-> Option<()>` with a `match` tail; **complete code** |
 | 7 | **High** | `flip_comma.rs:82` | assist | `#[repr(,​ C)]` leading comma |
 | 8 | **High** | `remove_unused_param.rs:197` | assist | `fn foo(x: i32,` / `foo(1,` unclosed |
 | 9 | **High** | `generate_getter_or_setter.rs:443` | assist | `impl S` with no body yet |
@@ -143,17 +149,22 @@ call site; for chained calls the rewrite of the inner `s.s()` and the outer
 second edit is silently dropped → a **wrong rename** on completely ordinary
 code. Rename is user-invoked but common, and the corruption is silent.
 
-### 6. `unwrap_option/result_return_type` — `unwrap_return_type.rs:120`
-Repro: `crates/ide-assists/.../unwrap_return_type.rs::zztemp_unwrap_option_unit_match_tail`.
+### 6. `unwrap_option/result_return_type` — `unwrap_return_type.rs:120` — ✅ FIXED ON MASTER
+Repro: `crates/ide-assists/.../unwrap_return_type.rs::zztemp_unwrap_option_unit_match_tail`
+(this test now **passes** — the assist produces a correct edit instead of
+panicking).
 
 ```rust
 fn foo() -> Option<()> { match 0 { _ => Some(()), } }
 ```
 
-For unit-wrapped types each tail expr's parent is cast to
+Originally: for unit-wrapped types each tail expr's parent was cast to
 `Either<ReturnExpr, StmtList>` and unwrapped, but `for_each_tail_expr` also
-yields `match`-arm tails whose parent is a `MatchArm`. **Complete, compiling
-code.**
+yields `match`-arm tails whose parent is a `MatchArm`. Master's rewrite of
+`unwrap_return_type` (now casting to
+`Either<Either<ReturnExpr, BreakExpr>, StmtList>` with a `None` arm that
+replaces the tail with `()`) fixed this independently. Kept in the list for
+completeness; no longer reproduces as of `28ccb8be`.
 
 ### 7. `flip_comma` — `flip_comma.rs:82`
 Repro: `flip_comma.rs::zztemp_flip_comma_attribute_leading_comma`.
