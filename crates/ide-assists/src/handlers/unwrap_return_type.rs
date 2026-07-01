@@ -254,6 +254,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn zztemp_unwrap_option_unit_match_tail() {
+        check_assist_by_label(
+            unwrap_return_type,
+            r#"
+//- minicore: option
+fn foo() -> Option<()>$0 {
+    match 0 {
+        _ => Some(()),
+    }
+}
+"#,
+            r#"
+fn foo() {
+    match 0 {
+        _ => (),
+    }
+}
+"#,
+            "Unwrap Option return type",
+        );
+    }
+
+    #[test]
     fn unwrap_option_return_type_simple() {
         check_assist_by_label(
             unwrap_return_type,

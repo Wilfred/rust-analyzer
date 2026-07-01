@@ -216,6 +216,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn zztemp_remove_unused_param_unclosed_param_list() {
+        check_assist(
+            remove_unused_param,
+            r#"
+fn foo(x$0: i32,
+"#,
+            r#""#,
+        );
+    }
+
+    #[test]
+    fn zztemp_remove_unused_param_unclosed_call() {
+        check_assist(
+            remove_unused_param,
+            r#"
+fn foo(x$0: i32) {}
+fn main() {
+    foo(1,
+}
+"#,
+            r#""#,
+        );
+    }
+
+    #[test]
     fn remove_unused() {
         check_assist(
             remove_unused_param,

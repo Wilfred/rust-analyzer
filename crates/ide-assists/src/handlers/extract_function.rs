@@ -2231,6 +2231,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn zztemp_extract_function_selection_spanning_fn_header() {
+        check_assist(extract_function, "fn f()$0 { l$0et x = ", "");
+    }
+
+    #[test]
     fn no_args_from_binary_expr() {
         check_assist(
             extract_function,

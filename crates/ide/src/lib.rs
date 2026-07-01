@@ -14,6 +14,8 @@
 
 #[cfg(test)]
 mod fixture;
+#[cfg(test)]
+mod zztemp_incomplete;
 
 mod markup;
 mod navigation_target;

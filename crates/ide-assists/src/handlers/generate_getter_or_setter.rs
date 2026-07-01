@@ -491,6 +491,18 @@ mod tests_getter {
     use super::*;
 
     #[test]
+    fn zztemp_generate_getter_existing_impl_without_body() {
+        check_assist(
+            generate_getter,
+            r#"
+struct S { fie$0ld: i32 }
+impl S
+"#,
+            r#""#,
+        );
+    }
+
+    #[test]
     fn test_generate_getter_from_field() {
         check_assist(
             generate_getter,

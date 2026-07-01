@@ -252,6 +252,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn zztemp_generate_enum_try_into_existing_impl_without_body() {
+        check_assist(
+            generate_enum_try_into_method,
+            r#"
+enum Value {
+    Number(i32)$0,
+}
+impl Value
+"#,
+            "",
+        );
+    }
+
+    #[test]
     fn test_generate_enum_try_into_tuple_variant() {
         check_assist(
             generate_enum_try_into_method,

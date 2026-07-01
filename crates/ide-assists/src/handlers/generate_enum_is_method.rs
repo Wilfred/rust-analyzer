@@ -153,6 +153,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn zztemp_generate_enum_is_existing_impl_without_body() {
+        check_assist(
+            generate_enum_is_method,
+            r#"
+enum Variant {
+    Undefined,
+    Minor$0,
+    Major,
+}
+impl Variant
+"#,
+            r#""#,
+        );
+    }
+
+    #[test]
     fn test_generate_enum_is_from_variant() {
         check_assist(
             generate_enum_is_method,

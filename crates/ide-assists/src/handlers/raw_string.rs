@@ -182,6 +182,11 @@ mod tests {
     use crate::tests::{check_assist, check_assist_not_applicable, check_assist_target};
 
     #[test]
+    fn zztemp_add_hash_half_typed_raw_ident() {
+        check_assist(add_hash, "fn f() { let $0r#  = 1; }", "");
+    }
+
+    #[test]
     fn make_raw_string_target() {
         check_assist_target(
             make_raw_string,

@@ -109,6 +109,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn zztemp_replace_let_unclosed_string_literal() {
+        check_assist(
+            replace_let_with_if_let,
+            "fn f() { $0let s = \"",
+            "",
+        );
+    }
+
+    #[test]
     fn replace_let_try_enum_ref() {
         check_assist(
             replace_let_with_if_let,

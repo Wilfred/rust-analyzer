@@ -550,6 +550,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn zztemp_extract_variable_unresolved_macro_paren() {
+        check_assist_not_applicable(extract_variable, "fn f() { m!$0($0 }");
+    }
+
+    #[test]
     fn extract_var_simple_without_select() {
         check_assist_by_label(
             extract_variable,

@@ -164,4 +164,14 @@ mod tests {
     fn flip_comma_attribute_incomplete() {
         check_assist_not_applicable(flip_comma, r#"#[repr(align(2),$0)] struct Foo;"#);
     }
+
+    #[test]
+    fn zztemp_flip_comma_attribute_leading_comma() {
+        check_assist_not_applicable(flip_comma, r#"#[repr(,$0 C)] struct Foo;"#);
+    }
+
+    #[test]
+    fn zztemp_flip_comma_attribute_double_comma() {
+        check_assist_not_applicable(flip_comma, r#"#[repr(, ,$0 C)] struct Foo;"#);
+    }
 }

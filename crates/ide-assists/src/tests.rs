@@ -1198,3 +1198,120 @@ pub fn test_some_range(a: int) -> bool {
         .assert_debug_eq(&extract_into_function_assist);
     }
 }
+
+#[test]
+fn zztemp_brute_force_incomplete_code() {
+    let snippets: &[&str] = &[
+        "fn foo(x: i32,",
+        "#[repr(, C)] struct Foo;",
+        "#[repr(align(2) C)] struct Foo;",
+        "//- minicore: option\nfn f() -> Option<()> { match 0 { _ => Some(()), } }",
+        "//- minicore: result\nfn f() -> Result<(), ()> { match 0 { _ => Ok(()), } }",
+        "struct S { field: i32 }\nimpl S",
+        "enum E { A, B }\nimpl E",
+        "struct S { field: i32 }\nimpl S {",
+        "fn f() { match x { Some(y) } }",
+        "fn f() { match x { } }",
+        "fn f() { match x { _ => } }",
+        "fn f() { let x = ",
+        "fn f(s: S) { s.  }\nstruct S { a: i32 }",
+        "fn f() { let  = 5; }",
+        "impl<  Type {}",
+        "fn foo<T: >() {}",
+        "use std::{",
+        "use ",
+        "fn f() { if let  = x {} }",
+        "trait T { fn f(&self",
+        "struct S(",
+        "fn f() { |x| }",
+        "fn f() { let c = |x: i32| x; c(",
+        "fn f() { for x in }",
+        "fn f() { loop { break ' } }",
+        "fn f() -> { }",
+        "#[derive()] struct D;",
+        "#[derive(] struct D;",
+        "fn f() { let s = \"",
+        "fn f() { let c = '' ; }",
+        "fn f() { let x = 340282366920938463463374607431768211456; }",
+        "fn f() { let x = 1e999999; }",
+        "fn f() { let t = (1, 2); t.99999999999999999999 }",
+        "fn f() { 1 + }",
+        "fn f() { x as }",
+        "fn f() { let r#  = 1; }",
+        "mod m { pub struct S; }\nfn f(s: m::",
+        "fn f() where ",
+        "static X: i32 = ;",
+        "const  : i32 = 1;",
+        "type A = ",
+        "enum E { A(",
+        "fn f() { return ",
+        "fn f() { async }",
+        "fn f() { let _: dyn = 1; }",
+        "fn f(x: &dyn) {}",
+        "fn f() { 0..  }",
+        "fn f() { ..=  }",
+        "fn f() { if x {  } else",
+        "trait Tr {}\nfn f(x: impl ) {}",
+        "fn f() { unsafe }",
+        "extern \"C\" {",
+        "fn f() { m!( }",
+        "macro_rules! m { () => ",
+        "fn f() { let Some(x) = y else ",
+    ];
+
+    static LAST_PANIC: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|info| {
+        let bt = std::backtrace::Backtrace::force_capture();
+        let bt = bt
+            .to_string()
+            .lines()
+            .filter(|l| l.contains("ide_assists") || l.contains("syntax::ast"))
+            .take(12)
+            .collect::<Vec<_>>()
+            .join("\n");
+        *LAST_PANIC.lock().unwrap() = Some(format!("{info}\n{bt}"));
+    }));
+
+    let mut failures: Vec<String> = Vec::new();
+    for (i, &snip) in snippets.iter().enumerate() {
+        let (db, file_id) = with_single_file(snip);
+        let text = ide_db::base_db::SourceDatabase::file_text(&db, file_id.file_id(&db))
+            .text(&db)
+            .to_string();
+        for start in 0..=text.len() {
+            if !text.is_char_boundary(start) {
+                continue;
+            }
+            for end in start..=text.len() {
+                if !text.is_char_boundary(end) {
+                    continue;
+                }
+                let range = TextRange::new(
+                    syntax::TextSize::new(start as u32),
+                    syntax::TextSize::new(end as u32),
+                );
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    assists(
+                        &db,
+                        &TEST_CONFIG,
+                        AssistResolveStrategy::All,
+                        FileRange { file_id: file_id.file_id(&db), range },
+                    )
+                }));
+                if result.is_err() {
+                    let msg = LAST_PANIC.lock().unwrap().take().unwrap_or_default();
+                    let entry = format!("snippet #{i} range {start}..{end}: {msg}");
+                    let loc_key = msg.lines().next().unwrap_or("").to_owned();
+                    if !failures.iter().any(|f| f.contains(&loc_key) && !loc_key.is_empty()) {
+                        failures.push(entry);
+                    }
+                }
+            }
+        }
+    }
+    std::panic::set_hook(prev_hook);
+    if !failures.is_empty() {
+        panic!("found {} panics:\n{}", failures.len(), failures.join("\n---\n"));
+    }
+}
