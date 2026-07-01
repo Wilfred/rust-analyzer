@@ -549,6 +549,17 @@ mod tests {
 
     use super::*;
 
+    /// Reproduction for the in-the-wild "request handler panicked: Bad range:
+    /// node range ..." error (rowan `covering_element` containment assert):
+    /// descending tokens into an unresolved macro call yields an
+    /// `original_range` that is not contained in the node handed to
+    /// `cover_edit_range`. See LSP_PANIC_FINDINGS.md.
+    #[test]
+    #[should_panic(expected = "Bad range: node range")]
+    fn repro_bad_range_unresolved_macro_paren() {
+        check_assist_not_applicable(extract_variable, "fn f() { m!$0($0 }");
+    }
+
     #[test]
     fn extract_var_simple_without_select() {
         check_assist_by_label(

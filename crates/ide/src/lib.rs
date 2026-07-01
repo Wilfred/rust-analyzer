@@ -14,6 +14,8 @@
 
 #[cfg(test)]
 mod fixture;
+#[cfg(test)]
+mod lsp_error_repros;
 
 mod markup;
 mod navigation_target;

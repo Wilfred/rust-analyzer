@@ -1,4 +1,5 @@
 mod closure_captures;
+mod panic_repros;
 mod coercion;
 mod diagnostics;
 mod display_source_code;
