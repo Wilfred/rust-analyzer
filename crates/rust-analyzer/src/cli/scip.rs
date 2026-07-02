@@ -4,8 +4,8 @@ use std::{path::PathBuf, time::Instant};
 
 use ide::{
     AnalysisHost, LineCol, Moniker, MonikerDescriptorKind, MonikerIdentifier, MonikerResult,
-    RootDatabase, StaticIndex, StaticIndexedFile, SymbolInformationKind, TextRange, TokenId,
-    TokenStaticData, VendoredLibrariesConfig,
+    RootDatabase, StaticIndex, StaticIndexConfig, StaticIndexedFile, SymbolInformationKind,
+    TextRange, TokenId, TokenStaticData, VendoredLibrariesConfig,
 };
 use ide_db::line_index;
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
@@ -72,7 +72,13 @@ impl flags::Scip {
             VendoredLibrariesConfig::Included { workspace_root: &root.clone().into() }
         };
 
-        let si = StaticIndex::compute(&analysis, vendored_libs_config);
+        // SCIP only emits symbol information; skip the hover results and
+        // folding ranges that only LSIF consumes.
+        let si = StaticIndex::compute(
+            &analysis,
+            vendored_libs_config,
+            StaticIndexConfig { hover: false, folds: false, symbol_info: true },
+        );
 
         let metadata = scip_types::Metadata {
             version: scip_types::ProtocolVersion::UnspecifiedProtocolVersion.into(),
@@ -544,6 +550,7 @@ mod test {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            StaticIndexConfig::default(),
         );
 
         let FilePosition { file_id, offset } = position;
@@ -912,6 +919,7 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            StaticIndexConfig::default(),
         );
 
         let file = si.files.first().unwrap();
@@ -935,6 +943,7 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            StaticIndexConfig::default(),
         );
 
         let file = si.files.first().unwrap();
@@ -963,6 +972,7 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            StaticIndexConfig::default(),
         );
 
         let file = si.files.first().unwrap();
@@ -995,6 +1005,7 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            StaticIndexConfig::default(),
         );
 
         let file = si.files.first().unwrap();

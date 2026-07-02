@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use ide::{
     Analysis, AnalysisHost, FileId, FileRange, MonikerKind, MonikerResult, PackageInformation,
-    RootDatabase, StaticIndex, StaticIndexedFile, TokenId, TokenStaticData,
+    RootDatabase, StaticIndex, StaticIndexConfig, StaticIndexedFile, TokenId, TokenStaticData,
     VendoredLibrariesConfig,
 };
 use ide_db::{line_index, line_index::WideEncoding};
@@ -317,7 +317,13 @@ impl flags::Lsif {
             VendoredLibrariesConfig::Included { workspace_root: &path.clone().into() }
         };
 
-        let si = StaticIndex::compute(&analysis, vendored_libs_config);
+        // LSIF only emits hovers, folding ranges, monikers, definitions and
+        // references; skip the symbol information that only SCIP consumes.
+        let si = StaticIndex::compute(
+            &analysis,
+            vendored_libs_config,
+            StaticIndexConfig { hover: true, folds: true, symbol_info: false },
+        );
 
         let mut lsif = LsifManager::new(&analysis, db, &vfs, out);
         lsif.add_vertex(lsif::Vertex::MetaData(lsif::MetaData {

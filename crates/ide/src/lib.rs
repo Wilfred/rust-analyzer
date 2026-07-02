@@ -116,7 +116,8 @@ pub use crate::{
     runnables::{Runnable, RunnableKind, TestId, UpdateTest},
     signature_help::SignatureHelp,
     static_index::{
-        StaticIndex, StaticIndexedFile, TokenId, TokenStaticData, VendoredLibrariesConfig,
+        StaticIndex, StaticIndexConfig, StaticIndexedFile, TokenId, TokenStaticData,
+        VendoredLibrariesConfig,
     },
     syntax_highlighting::{
         HighlightConfig, HlRange,

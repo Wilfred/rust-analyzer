@@ -32,6 +32,7 @@ pub struct StaticIndex<'a> {
     analysis: &'a Analysis,
     db: &'a RootDatabase,
     def_map: FxHashMap<Definition, TokenId>,
+    config: StaticIndexConfig,
 }
 
 #[derive(Debug)]
@@ -164,10 +165,37 @@ pub enum VendoredLibrariesConfig<'a> {
     Excluded,
 }
 
+/// Selects which data [`StaticIndex::compute`] produces.
+///
+/// LSIF and SCIP emit different subsets of the index, and some of the data is
+/// expensive to compute, so consumers should only request what they actually
+/// use.
+#[derive(Debug, Clone, Copy)]
+pub struct StaticIndexConfig {
+    /// Compute a hover result for every definition (used by LSIF).
+    pub hover: bool,
+    /// Compute folding ranges for every file (used by LSIF).
+    pub folds: bool,
+    /// Compute documentation, display name and signature for every definition
+    /// (used by SCIP).
+    pub symbol_info: bool,
+}
+
+impl Default for StaticIndexConfig {
+    /// Computes everything.
+    fn default() -> Self {
+        StaticIndexConfig { hover: true, folds: true, symbol_info: true }
+    }
+}
+
 impl StaticIndex<'_> {
     fn add_file(&mut self, file_id: FileId) {
         let current_crate = crates_for(self.db, file_id).pop().map(Into::into);
-        let folds = self.analysis.folding_ranges(file_id, true).unwrap();
+        let folds = if self.config.folds {
+            self.analysis.folding_ranges(file_id, true).unwrap()
+        } else {
+            Vec::new()
+        };
         // hovers
         let sema = hir::Semantics::new(self.db);
         let root = sema.parse_guess_edition(file_id).syntax().clone();
@@ -200,20 +228,33 @@ impl StaticIndex<'_> {
                 *it
             } else {
                 let nav = def.try_to_nav(&sema).map(UpmappingResult::call_site);
+                // Documentation, display name and signature are only used by SCIP.
+                let (documentation, display_name, signature) = if self.config.symbol_info {
+                    (
+                        documentation_for_definition(&sema, def, scope_node),
+                        def.name(self.db).map(|name| name.display(self.db, edition).to_string()),
+                        Some(def.label(self.db, display_target)),
+                    )
+                } else {
+                    (None, None, None)
+                };
                 let it = self.tokens.insert(TokenStaticData {
-                    documentation: documentation_for_definition(&sema, def, scope_node),
-                    hover: Some(hover_for_definition(
-                        &sema,
-                        file_id,
-                        def,
-                        None,
-                        scope_node,
-                        None,
-                        false,
-                        &hover_config,
-                        edition,
-                        display_target,
-                    )),
+                    documentation,
+                    // Hover is only used by LSIF.
+                    hover: self.config.hover.then(|| {
+                        hover_for_definition(
+                            &sema,
+                            file_id,
+                            def,
+                            None,
+                            scope_node,
+                            None,
+                            false,
+                            &hover_config,
+                            edition,
+                            display_target,
+                        )
+                    }),
                     definition: nav.as_ref().map(|it| FileRange {
                         file_id: it.file_id,
                         range: it.focus_or_full_range(),
@@ -224,23 +265,18 @@ impl StaticIndex<'_> {
                     }),
                     references: vec![],
                     moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
-                    display_name: def
-                        .name(self.db)
-                        .map(|name| name.display(self.db, edition).to_string()),
-                    signature: Some(def.label(self.db, display_target)),
+                    display_name,
+                    signature,
                     kind: def_to_kind(self.db, def),
                 });
                 self.def_map.insert(def, it);
                 it
             };
             let token = self.tokens.get_mut(id).unwrap();
-            token.references.push(ReferenceData {
-                range: FileRange { range, file_id },
-                is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
-                    Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
-                    None => false,
-                },
-            });
+            let is_definition = token.definition == Some(FileRange { file_id, range });
+            token
+                .references
+                .push(ReferenceData { range: FileRange { range, file_id }, is_definition });
             result.tokens.push((range, id));
         };
 
@@ -268,6 +304,7 @@ impl StaticIndex<'_> {
     pub fn compute<'a>(
         analysis: &'a Analysis,
         vendored_libs_config: VendoredLibrariesConfig<'_>,
+        config: StaticIndexConfig,
     ) -> StaticIndex<'a> {
         let db = &analysis.db;
         hir::attach_db(db, || {
@@ -291,6 +328,7 @@ impl StaticIndex<'_> {
                 analysis,
                 db,
                 def_map: Default::default(),
+                config,
             };
             let mut visited_files = FxHashSet::default();
             for module in work {
@@ -366,14 +404,14 @@ mod tests {
     use ide_db::{FileRange, FxHashMap, FxHashSet, base_db::VfsPath};
     use syntax::TextSize;
 
-    use super::VendoredLibrariesConfig;
+    use super::{StaticIndexConfig, VendoredLibrariesConfig};
 
     fn check_all_ranges(
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, StaticIndexConfig::default());
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for f in s.files {
             for (range, _) in f.tokens {
@@ -399,7 +437,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, StaticIndexConfig::default());
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for (_, t) in s.tokens.iter() {
             if let Some(t) = t.definition {
@@ -424,7 +462,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, StaticIndexConfig::default());
         let mut range_set: FxHashMap<_, i32> = ranges.iter().map(|it| (it.0, 0)).collect();
 
         // Make sure that all references have at least one range. We use a HashMap instead of a
