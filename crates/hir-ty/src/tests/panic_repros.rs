@@ -1,7 +1,7 @@
 //! Reproductions for panics observed in the wild in LSP request handlers
 //! ("request handler panicked: ..."). Each reproduction is an intentional
-//! crash, asserted via `#[should_panic]`; see LSP_PANIC_FINDINGS.md at the
-//! repo root for the analysis.
+//! crash, asserted via `#[should_panic]`; see docs/lsp-panics/ for the
+//! per-issue analysis.
 //!
 //! All of the `PlaceTy::field_ty` panics below fire from `db.borrowck(..)`,
 //! which `hir::DefWithBody::diagnostics` runs for *every body* when computing

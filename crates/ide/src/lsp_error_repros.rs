@@ -1,6 +1,6 @@
 //! Reproductions for panics observed in the wild in LSP request handlers
 //! ("request handler panicked: ..."). Each test is an intentional crash,
-//! asserted via `#[should_panic]`; see LSP_PANIC_FINDINGS.md at the repo root.
+//! asserted via `#[should_panic]`; see docs/lsp-panics/ for the analysis.
 
 use ide_db::ra_fixture::RaFixtureConfig;
 use syntax::{TextRange, TextSize};
