@@ -2102,6 +2102,27 @@ mod tests {
 
     use super::*;
 
+    /// Reproduction for the in-the-wild "request handler panicked: invalid
+    /// offset" error (lib/line-index/src/lib.rs `LineIndex::line_col`):
+    /// every response-path conversion funnels through `to_proto::position`,
+    /// which panics when handed an offset past the end of the current file
+    /// text (or one inside a multi-byte character). Such offsets reach here
+    /// from macro-span-resolved `FileRange`s (`hir_expand::db::resolve_span`
+    /// adds `anchor_offset` without clamping — the same root cause as the
+    /// "Bad range" panic) and from ranges cached across edits.
+    /// See docs/lsp-panics/07-invalid-offset.md.
+    #[test]
+    #[should_panic(expected = "invalid offset")]
+    fn repro_invalid_offset_past_eof() {
+        let text = "fn main() {}\n";
+        let line_index = LineIndex {
+            index: Arc::new(ide::LineIndex::new(text)),
+            endings: LineEndings::Unix,
+            encoding: PositionEncoding::Utf8,
+        };
+        let _ = position(&line_index, TextSize::new(text.len() as u32 + 2));
+    }
+
     #[test]
     fn conv_fold_line_folding_only_fixup() {
         let text = r#"mod a;

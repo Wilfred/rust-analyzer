@@ -1,6 +1,6 @@
 # In-the-wild LSP request panics
 
-Five error messages that rust-analyzer LSP deployments report as
+Error messages that rust-analyzer LSP deployments report as
 `request handler panicked: ...`. Each issue has a self-contained doc with the
 root-cause analysis, verified reproductions, and fix directions:
 
@@ -11,6 +11,9 @@ root-cause analysis, verified reproductions, and fix directions:
 | [03-cant-project-out-of-type-error.md](03-cant-project-out-of-type-error.md) | `can't project out of {type error}` | reproduced (exact message) |
 | [04-field-index-out-of-range.md](04-field-index-out-of-range.md) | `field FieldIndex(N) out of range (&'{region error} ...` | reproduced (exact message) |
 | [05-salsa-cant-merge-cycle-heads.md](05-salsa-cant-merge-cycle-heads.md) | `Can't merge cycle heads ... variances_of_query` | analyzed; sibling salsa panic reproduced |
+| [06-used-an-incorrect-attr-id.md](06-used-an-incorrect-attr-id.md) | ``used an incorrect `AttrId` `` | reproduced (exact message) |
+| [07-invalid-offset.md](07-invalid-offset.md) | `invalid offset` | reproduced at the sink; root cause shared with 01 |
+| [08-unmatched-closing-delimiter.md](08-unmatched-closing-delimiter.md) | `unmatched closing delimiter from syntax fixup` | reproduced (exact message) |
 
 Common context for all five:
 
@@ -37,5 +40,14 @@ test (see the "Acceptance criteria" section of each doc).
 cargo test -p hir-ty --lib tests::panic_repros
 cargo test -p ide --lib lsp_error_repros
 cargo test -p ide-assists --lib extract_variable::tests::repro_bad_range
+cargo test -p hir-def --lib repro_unmatched_closing                          # issue 08
+cargo test -p rust-analyzer --lib to_proto::tests::repro_invalid_offset      # issue 07
 VARIANCE_ROUNDS=10000 cargo test -p hir-ty --lib parallel_variances_cycle_heads -- --ignored   # soak, issue 05
 ```
+
+Issues 06 and 08 are regressions introduced by the "Rewrite attribute
+handling" commit `f0e372c3b6` (2025-11-29): 06's panic arrived with the
+AttrId re-resolution machinery, and 08's previously-defensive assert became
+reachable through the new cfg_attr `[`/`]` reconstruction. Builds older than
+2025-03 additionally hit 08 through the since-removed `ArgList` lone-`)`
+fixup (issues #18244/#19206).

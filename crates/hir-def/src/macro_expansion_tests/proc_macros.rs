@@ -360,3 +360,28 @@ struct S;
 struct SSuffix;"#]],
     );
 }
+
+/// Reproduction for the in-the-wild "request handler panicked: unmatched
+/// closing delimiter from syntax fixup" error (crates/syntax-bridge/src/lib.rs:243).
+///
+/// The cfg_attr-expansion callback (`macro_input_callback` in
+/// crates/hir-expand/src/cfg_process.rs) inserts leaf `#`/`[`/`]` puncts when
+/// reconstructing the expanded attribute inside an attribute/derive macro
+/// input. The stray `]` inside the meta's token tree triggers the multi-close
+/// recovery in `convert_tokens`, which sweeps the leaf-opened `[` subtree;
+/// the inserted closing `]` leaf then finds no open bracket and panics.
+/// A single mid-edit typo inside a cfg_attr on any attr/derive-macro'd item
+/// is enough. See docs/lsp-panics/08-unmatched-closing-delimiter.md.
+#[test]
+#[should_panic(expected = "unmatched closing delimiter from syntax fixup")]
+fn repro_unmatched_closing_delimiter_from_cfg_attr_reconstruction() {
+    check(
+        r#"
+//- proc_macros: identity
+#[cfg_attr(true, allow(]))]
+#[proc_macros::identity]
+fn f() {}
+"#,
+        expect![[r#""#]],
+    );
+}
