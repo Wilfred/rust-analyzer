@@ -280,6 +280,121 @@ fn term_search_unify_type_owners() {
     let _ = analysis.completions(&COMPLETION_CONFIG, position, None);
 }
 
+/// Brute-force hunt for "Bad range"/"Bad offset" panics in position-taking
+/// IDE features, over a macro-heavy corpus (span mapping through token
+/// reordering/duplication/dropping, def-site tokens, include!, proc macros).
+#[test]
+fn bad_range_hunt_ide_macro_corpus() {
+    let snippets: &[&str] = &[
+        "macro_rules! m { ($e:expr) => { ($e) + ($e) }; }\nfn f() { let x = m!(1 + 2); }",
+        "macro_rules! m { ($e:expr) => {}; }\nfn f() { m!(1 + 2); }",
+        "macro_rules! m { ($a:tt $b:tt) => { $b $a }; }\nfn f() { m!({ 1 } { 2 }); }",
+        "macro_rules! m { ($e:expr) => { fn g() -> i32 { $e } }; }\nm!(1 + 2);",
+        "macro_rules! m { () => { fn generated() -> i32 { 1 + 2 } }; }\nm!();\nfn f() { generated(); }",
+        "fn f() { m!( }",
+        "macro_rules! m { ($($t:tt)*) => { $($t)* }; }\nfn f() { m!(let x = 1 + ); }",
+        "//- /main.rs\ninclude!(\"other.rs\");\nfn f() { let x = g(); }\n//- /other.rs\nfn g() -> i32 { 1 + 2 }",
+        "//- minicore: fmt\nfn f() { let a = 1; format_args!(\"{} {a}\", 1 + 2); }",
+        "//- proc_macros: identity\n#[proc_macros::identity]\nfn f() { let x = (1 + 2); }",
+        "//- proc_macros: input_replace\n#[proc_macros::input_replace(fn f() { let x = (1 + 2); })]\nfn dummy() {}",
+        "//- proc_macros: mirror\nfn f() { proc_macros::mirror! { field: (i32, i32) } }",
+        "macro_rules! m { () => { fn add(a: i32) -> i32 { a + a } }; }\nm!();\nfn f() { let x = add(1); }",
+    ];
+    let hover_config = crate::HoverConfig {
+        links_in_hover: true,
+        memory_layout: None,
+        documentation: true,
+        format: crate::HoverDocFormat::Markdown,
+        keywords: true,
+        max_trait_assoc_items_count: None,
+        max_fields_count: Some(5),
+        max_enum_variants_count: Some(5),
+        max_subst_ty_len: crate::SubstTyLen::Unlimited,
+        show_drop_glue: true,
+        ra_fixture: RaFixtureConfig::default(),
+    };
+    let goto_config = crate::GotoDefinitionConfig { ra_fixture: RaFixtureConfig::default() };
+    static LAST_PANIC: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|info| {
+        *LAST_PANIC.lock().unwrap() = Some(format!("{info}"));
+    }));
+    let mut failures: Vec<String> = Vec::new();
+    for (i, &snip) in snippets.iter().enumerate() {
+        let mut host = crate::AnalysisHost::default();
+        let change_fixture = test_fixture::ChangeFixture::parse(snip);
+        host.db.enable_proc_attr_macros();
+        host.db.apply_change(change_fixture.change);
+        let analysis = host.analysis();
+        for file in &change_fixture.files {
+            let file_id = file.file_id();
+            let len: u32 = analysis.file_text(file_id).unwrap().len() as u32;
+            for off in 0..=len {
+                let position = FilePosition { file_id, offset: TextSize::new(off) };
+                let frange = FileRange { file_id, range: TextRange::empty(TextSize::new(off)) };
+                macro_rules! probe {
+                    ($name:literal, $e:expr) => {
+                        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            let _ = $e;
+                        }))
+                        .is_err()
+                        {
+                            let msg = LAST_PANIC.lock().unwrap().take().unwrap_or_default();
+                            failures.push(format!(
+                                "snippet #{i} ({:?}) offset {off}: {} | {}",
+                                &snip[..30.min(snip.len())],
+                                $name,
+                                msg.lines().next().unwrap_or("")
+                            ));
+                        }
+                    };
+                }
+                probe!("hover", analysis.hover(&hover_config, frange));
+                probe!("goto_definition", analysis.goto_definition(position, &goto_config));
+                probe!("expand_macro", analysis.expand_macro(position));
+                probe!(
+                    "highlight_related",
+                    analysis.highlight_related(
+                        crate::HighlightRelatedConfig {
+                            references: true,
+                            exit_points: true,
+                            break_points: true,
+                            closure_captures: true,
+                            yield_points: true,
+                            branch_exit_points: true,
+                        },
+                        position,
+                    )
+                );
+                probe!("prepare_rename", analysis.prepare_rename(position));
+                probe!("completions", analysis.completions(&COMPLETION_CONFIG, position, None));
+            }
+            probe_diag(&analysis, file_id, i, &mut failures);
+        }
+    }
+    std::panic::set_hook(prev_hook);
+    assert!(failures.is_empty(), "found panics:\n{}", failures.join("\n"));
+
+    fn probe_diag(
+        analysis: &crate::Analysis,
+        file_id: crate::FileId,
+        i: usize,
+        failures: &mut Vec<String>,
+    ) {
+        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = analysis.full_diagnostics(
+                &crate::DiagnosticsConfig::test_sample(),
+                crate::AssistResolveStrategy::All,
+                file_id,
+            );
+        }))
+        .is_err()
+        {
+            failures.push(format!("snippet #{i}: diagnostics"));
+        }
+    }
+}
+
 /// "Bad offset"/"Bad range" (rowan `token_at_offset`/`covering_element`
 /// asserts) when a position/range past EOF reaches the syntax tree.
 ///
@@ -320,4 +435,55 @@ fn out_of_bounds_offset_panics() {
         "expected at least one feature to panic on an out-of-bounds offset"
     );
     eprintln!("panicking features: {panics:?}");
+}
+
+/// TextSize subtraction underflow in doc-link resolution
+/// (crates/ide/src/doc_links.rs:306, `get_definition_with_descend_at`):
+/// `offset - original_start - prefix_len` underflows when the cursor is
+/// *inside* the `///` prefix of a doc comment (mouse-hover or goto-def with
+/// the cursor on the slashes — no macros involved). Panics in
+/// overflow-checked builds; wraps silently in release.
+#[test]
+#[should_panic(expected = "attempt to subtract with overflow")]
+fn repro_doc_comment_prefix_offset_underflow() {
+    let (analysis, file_id) = fixture::file("/// docs\nfn g() { let x = 1 + 2; }");
+    let hover_config = crate::HoverConfig {
+        links_in_hover: true,
+        memory_layout: None,
+        documentation: true,
+        format: crate::HoverDocFormat::Markdown,
+        keywords: true,
+        max_trait_assoc_items_count: None,
+        max_fields_count: Some(5),
+        max_enum_variants_count: Some(5),
+        max_subst_ty_len: crate::SubstTyLen::Unlimited,
+        show_drop_glue: true,
+        ra_fixture: RaFixtureConfig::default(),
+    };
+    // offset 1 = the second `/` of the `///` prefix
+    let _ = analysis.hover(
+        &hover_config,
+        FileRange { file_id, range: TextRange::empty(TextSize::new(1)) },
+    );
+}
+
+/// `TtTreeSink::token` (crates/syntax-bridge/src/lib.rs:955) cannot handle a
+/// proc-macro expansion containing a literal with *empty text*
+/// (`debug_assert_ne!(self.buf.len() - buf_l, 0)`): the test `shorten`
+/// expander emits exactly that, standing in for a buggy/hostile proc-macro
+/// server (span/token data is deserialized unvalidated, see
+/// docs/lsp-panics/01-bad-range-node-range.md). Debug builds panic during
+/// `parse_macro_expansion`; release builds silently misalign the expansion
+/// span map.
+#[test]
+#[should_panic(expected = "assertion `left != right` failed")]
+fn repro_proc_macro_empty_literal_token_sink() {
+    let (analysis, file_id) = fixture::file(
+        "//- proc_macros: shorten\nfn f() { let x = proc_macros::shorten!(1 + 2); }",
+    );
+    let _ = analysis.full_diagnostics(
+        &crate::DiagnosticsConfig::test_sample(),
+        crate::AssistResolveStrategy::All,
+        file_id,
+    );
 }

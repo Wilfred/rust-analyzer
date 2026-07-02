@@ -130,6 +130,60 @@ from an earlier snapshot.
    past EOF at the `Analysis` API layer — the state any of paths A-C ends
    in.
 
+## More verified producers (2026-07-02 brute-force hunt)
+
+A macro-focused sweep (all assists over every selection range, plus
+position-taking IDE features at every offset; harnesses committed as
+`ide-assists tests::bad_range_hunt` and
+`ide lsp_error_repros::bad_range_hunt_ide_macro_corpus`) found these
+additional cases:
+
+1. **extract_variable via argument-duplicating macros** — exact message
+   `Bad range: node range 68..75, range 66..75`:
+
+   ```rust
+   macro_rules! m { ($e:expr) => { ($e) + ($e) }; }
+   fn f() { let x = m!($0($01 + 2); }   // select the `(`
+   ```
+
+   The range mapped back from the expansion (where `$e` occurs twice)
+   *starts before* the token-tree node handed to `cover_edit_range`. An
+   argument-*dropping* macro (`($e:expr) => {}`) and a token-*reordering*
+   macro (`($a:tt $b:tt) => { $b $a }`) trigger the same panic — the whole
+   TOKEN_TREE arm of extract_variable is unguarded against any nontrivial
+   up-mapping.
+   Repros: `extract_variable::tests::repro_bad_range_macro_arg_duplicated`
+   and `repro_bad_range_macro_arg_dropped`. The pending
+   `fix/extract-variable-bad-range` branch's containment guard covers both
+   (verified by applying the fix and re-running) — add them as regression
+   tests there.
+
+2. **Doc-comment prefix offset underflow**
+   (`crates/ide/src/doc_links.rs:306`,
+   `DocCommentToken::get_definition_with_descend_at`):
+
+   ```rust
+   let relative_comment_offset = offset - original_start - prefix_len;
+   ```
+
+   underflows whenever hover/goto-def is requested with the cursor
+   **inside the `///` prefix itself** — plain code, no macros
+   (`ide lsp_error_repros::repro_doc_comment_prefix_offset_underflow`).
+   Panics in overflow-checked builds; in release the wrap mostly cancels
+   out arithmetically, but the computation is unguarded — fix with
+   `offset.checked_sub(original_start + prefix_len)?`.
+
+3. **Empty-literal tokens from proc macros**
+   (`crates/syntax-bridge/src/lib.rs:955`, `TtTreeSink::token`):
+   `debug_assert_ne!(self.buf.len() - buf_l, 0)` — a proc macro emitting a
+   literal with empty text (the in-tree `shorten` test expander does
+   exactly this; a buggy/hostile proc-macro server can, since token/span
+   data is deserialized unvalidated, see `flat.rs` above) panics
+   `parse_macro_expansion` in debug builds and silently misaligns the
+   expansion span map in release — feeding wrong ranges to everything
+   downstream. Repro:
+   `ide lsp_error_repros::repro_proc_macro_empty_literal_token_sink`.
+
 ## Fix directions
 
 Fix at the chokepoints, not the dozens of `covering_element` call sites:

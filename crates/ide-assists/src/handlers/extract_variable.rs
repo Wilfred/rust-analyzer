@@ -560,6 +560,32 @@ mod tests {
         check_assist_not_applicable(extract_variable, "fn f() { m!$0($0 }");
     }
 
+    /// Same panic through a resolving macro that *duplicates* its argument
+    /// tokens: the range mapped back from the expansion starts before the
+    /// token tree node handed to `cover_edit_range`
+    /// (`Bad range: node range 68..75, range 66..75`). Fixed by the same
+    /// containment guard as `repro_bad_range_unresolved_macro_paren`; flip
+    /// all three repros into plain `check_assist_not_applicable` once that
+    /// fix lands.
+    #[test]
+    #[should_panic(expected = "Bad range: node range")]
+    fn repro_bad_range_macro_arg_duplicated() {
+        check_assist_not_applicable(
+            extract_variable,
+            "macro_rules! m { ($e:expr) => { ($e) + ($e) }; }\nfn f() { let x = m!$0($01 + 2); }",
+        );
+    }
+
+    /// Same panic through a macro that *drops* its argument tokens.
+    #[test]
+    #[should_panic(expected = "Bad range: node range")]
+    fn repro_bad_range_macro_arg_dropped() {
+        check_assist_not_applicable(
+            extract_variable,
+            "macro_rules! m { ($e:expr) => {}; }\nfn f() { m!$0($01 + 2); }",
+        );
+    }
+
     #[test]
     fn extract_var_simple_without_select() {
         check_assist_by_label(

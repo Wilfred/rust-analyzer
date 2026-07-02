@@ -1,3 +1,4 @@
+mod bad_range_hunt;
 mod generated;
 
 use expect_test::expect;
