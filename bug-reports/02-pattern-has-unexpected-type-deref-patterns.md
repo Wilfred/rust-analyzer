@@ -147,6 +147,90 @@ pub fn f(x: Box<Option<i32>>) {
 Run `RA_LOG=error rust-analyzer diagnostics <project>` (release-flavored build) → two `ERROR
 pattern has unexpected type ...` lines (one per arm's lowering).
 
+## Confirmed shape inventory
+
+Scanning a corpus with a CLI build whose `never!`s log instead of panic produced this family
+of shapes (all from the same `never!` at `pat_analysis.rs:178`); any `Deref`-implementing ADT
+scrutinee works, and chains nest one `Deref` level per pattern adjustment:
+
+```
+ty: String,                 Deref { str Wild }                       // match String  { "" => }
+ty: Box<str>,               Deref { str Wild }                       // match Box<str> { "" => }
+ty: Box<&str>,              Deref { &'static str Wild }              // match Box<&str> { "" => }
+ty: Box<Box<&str>>,         Deref { Box<&str> Deref { &str Wild } }  // two-level chain
+ty: Box<String>,            Deref { String Deref { str Wild } }      // two-level chain
+ty: Rc<str> / Rc<String>,   ...                                      // ditto
+ty: Cow<'{region error}, str>, Deref { str Wild }                    // match Cow<str> { "" => }
+ty: Vec<u8>,                Deref { [u8] Wild }                      // match Vec<u8> { b"" => }
+ty: Box<Option<String>>,    Deref { Option<String> Variant {...} }   // match box { Some("")=> }
+```
+
+The `&'{region error}` regions are normal: writeback resolves unresolved region variables to
+error regions, so any inferred reference type in these dumps carries them.
+
+## Variant: outer type printed as bare `str` (primitive-shadowing ADT)
+
+A reported real-world shape looks like:
+
+```
+pattern has unexpected type: pat: Pat { ty: str, kind: Deref { subpattern:
+Pat { ty: &'{region error} str, kind: Deref { subpattern:
+Pat { ty: &'{region error} str, kind: Wild } } } } }, ty: str
+```
+
+At first glance the outer `ty: str` looks impossible: both adjustment-push sites require the
+peeled type to be `TyKind::Ref` (`infer/pat.rs:407-417`) or `TyKind::Adt`
+(`should_peel_smart_pointer`, `infer/pat.rs:730`), and the primitive `str` is `TyKind::Str` —
+so no adjustment can ever have the primitive `str` as its `source`, and the `Deref` wrapper
+types in these dumps are exactly the adjustment sources.
+
+The resolution: the `str` in the dump is **not the primitive** — it is an ADT *named* `str`
+(shadowing a primitive type name is legal Rust), which Debug-prints identically to the
+primitive (ADTs print bare names, cf. `String`). Confirmed reproduction:
+
+```rust
+#![feature(deref_patterns)]
+#![allow(incomplete_features, unused, non_camel_case_types)]
+use std::ops::Deref;
+pub struct str;
+impl Deref for str {
+    type Target = &'static str;
+    fn deref(&self) -> &&'static str { &"" }
+}
+pub fn f(x: str) { match x { "" => {}, _ => {} } }        // literal pattern
+pub fn g(x: str) { match x { None => {}, _ => {} } }      // any peel-inducing pattern
+```
+
+logs exactly:
+
+```
+pattern has unexpected type: pat: Pat { ty: str, kind: Deref { subpattern:
+Pat { ty: &'static str, kind: Wild } } }, ty: str
+```
+
+Notes on the remaining details of the reported shape:
+
+- Inside such an impl, `type Target = &str` resolves `str` to the *shadowing ADT* and has an
+  elided lifetime (a hard error in rustc — "missing lifetime specifier" — but rust-analyzer
+  analyzes it anyway, lowering the elision to an error region). So the middle
+  `&'{region error} str` layer is `&str-ADT` — print-indistinguishable from a reference to the
+  primitive — and the Target is *recursive* (`str-ADT` derefs to `&str-ADT`), which lets
+  peeling alternate BuiltinDeref/OverloadedDeref and produce multi-level `[str, &str, ...]`
+  wrapper chains (bounded by `recursion_limit`, `infer/pat.rs:591`).
+- Whether the second (ref) peel actually happens depends on normalization timing:
+  `deref_pat_target` (`infer/pat.rs:1295`) returns `try_structurally_resolve_type(<T as
+  Deref>::Target)`, which with the lazy next-solver can come back as an inference variable; the
+  `TyKind::Ref` guard then fails and peeling stops after one adjustment. With a resolved
+  (cache-warm) projection the guard sees the `Ref` and pushes the second adjustment. This
+  makes the exact chain length environment/caching-dependent.
+- While investigating this, another latent oddity surfaced:
+  `InferenceResult::type_of_pat_with_adjust` (`infer.rs:1134-1139`) returns
+  `adjustments.last().source` — the *innermost* peeled type — as the pattern's "adjusted
+  type", but the scrutinee-side type is the *first* adjustment's source. `validate_match`'s
+  `pat_ty == scrut_ty` guard only works today because of the `as_reference` special case and
+  because `is_none_or` returns `true` for non-reference scrutinees; worth auditing when fixing
+  this bug.
+
 ## Companion bug: hard panic in MIR lowering (crashes the process, even in release)
 
 With the same feature, a deref pattern on `String`:
