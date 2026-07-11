@@ -45,7 +45,7 @@ use hir_def::{
     TupleFieldId, TupleId, VariantId,
     attrs::AttrFlags,
     expr_store::{Body, ExpressionStore, HygieneId, body::Param, path::Path},
-    hir::{BindingId, ExprId, ExprOrPatId, LabelId, PatId},
+    hir::{BindingId, Expr, ExprId, ExprOrPatId, LabelId, PatId},
     lang_item::LangItems,
     layout::Integer,
     resolver::{HasResolver, ResolveValueResult, Resolver, TypeNs, ValueNs},
@@ -259,6 +259,60 @@ fn infer_finalize(mut ctx: InferenceContext<'_, '_>) -> InferenceResult {
     ctx.merge_anon_consts();
 
     ctx.resolve_all()
+}
+
+/// Rewrites indexing of arrays and slices with a `usize` index from the overloaded
+/// `Index`/`IndexMut` form produced during inference into builtin indexing, mirroring
+/// rustc's `fix_index_builtin_expr()` writeback pass: the method resolution is removed
+/// and the autoref (and array unsize) adjustments are popped from the base expression,
+/// leaving only the autoderef steps.
+///
+/// Consumers rely on the resulting invariant: an index expression with a method
+/// resolution is overloaded indexing, and one without is builtin indexing whose base's
+/// adjusted type is the array or slice itself (or invalid, if inference failed and the
+/// base's adjusted type is not an array or slice).
+fn fix_index_builtin_exprs(
+    store: &ExpressionStore,
+    method_resolutions: &mut FxHashMap<ExprId, (FunctionId, StoredGenericArgs)>,
+    expr_adjustments: &mut FxHashMap<ExprId, Box<[Adjustment]>>,
+    type_of_expr: &ArenaMap<ExprId, StoredTy>,
+    usize_ty: Ty<'_>,
+) {
+    method_resolutions.retain(|&expr, _| {
+        let &Expr::Index { base, index } = &store[expr] else { return true };
+        let adjusted_ty = |expr: ExprId| {
+            expr_adjustments
+                .get(&expr)
+                .and_then(|it| it.last())
+                .map(|it| it.target.as_ref())
+                .or_else(|| type_of_expr.get(expr).map(|it| it.as_ref()))
+        };
+        // Resolved indexing always goes through a reference to the indexed type (the
+        // autoref adjustment), so builtin indexing is a reference to an array or slice
+        // here, indexed by a `usize`.
+        let is_builtin_index = adjusted_ty(base).is_some_and(|base_ty| match base_ty.kind() {
+            TyKind::Ref(_, inner, _) => inner.builtin_index().is_some(),
+            _ => false,
+        }) && adjusted_ty(index) == Some(usize_ty);
+        if !is_builtin_index {
+            return true;
+        }
+        if let Some(adjustments) = expr_adjustments.get_mut(&base) {
+            let mut new_adjustments = std::mem::take(adjustments).into_vec();
+            // Discard the autoref. If the array was unsized to a slice, that adjustment
+            // comes after the autoref, so pop it first.
+            if let Some(Adjustment { kind: Adjust::Pointer(PointerCast::Unsize), .. }) =
+                new_adjustments.pop()
+            {
+                new_adjustments.pop();
+            }
+            *adjustments = new_adjustments.into_boxed_slice();
+        }
+        if expr_adjustments.get(&base).is_some_and(|it| it.is_empty()) {
+            expr_adjustments.remove(&base);
+        }
+        false
+    });
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1560,6 +1614,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             diagnostics,
             types,
             vars_emitted_type_must_be_known_for,
+            store,
             ..
         } = self;
         let diagnostics = diagnostics.finish();
@@ -1629,6 +1684,13 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         for adjustment in expr_adjustments.values_mut().flatten() {
             resolver.resolve_completely(&mut adjustment.target);
         }
+        fix_index_builtin_exprs(
+            store,
+            method_resolutions,
+            expr_adjustments,
+            type_of_expr,
+            types.types.usize,
+        );
         expr_adjustments.shrink_to_fit();
         for adjustments in pat_adjustments.values_mut() {
             for adjustment in &mut *adjustments {

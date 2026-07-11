@@ -955,10 +955,14 @@ fn adjust_index() {
     check_no_mismatches(
         r"
 //- minicore: index, slice, coerce_unsized
-fn test() {
+fn test(y: &mut [i32]) {
     let x = [1, 2, 3];
+    // Builtin indexing needs no adjustments on the array itself...
     x[2] = 6;
- // ^ adjustments: Borrow(Ref(Mut { allow_two_phase_borrow: No }))
+ // ^ adjustments:
+    // ...and only the autoderef steps on a reference to it.
+    y[2] = 6;
+ // ^ adjustments: Deref(None)
 }
     ",
     );

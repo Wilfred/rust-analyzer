@@ -201,19 +201,13 @@ impl<'db> MirLowerCtx<'_, 'db> {
                 Ok(Some((r, current)))
             }
             Expr::Index { base, index } => {
+                // Inference writeback rewrote builtin indexing of arrays and slices to have
+                // no method resolution and only autoderef adjustments on the base, so its
+                // adjusted base type is the array/slice itself (see
+                // `fix_index_builtin_exprs()`). Everything with a method resolution is
+                // overloaded indexing through `Index`/`IndexMut`.
                 let base_ty = self.expr_ty_after_adjustments(*base);
-                let index_ty = self.expr_ty_after_adjustments(*index);
-                if !matches!(index_ty.kind(), TyKind::Uint(rustc_ast_ir::UintTy::Usize))
-                    || !matches!(
-                        base_ty.strip_reference().kind(),
-                        TyKind::Array(..) | TyKind::Slice(..)
-                    )
-                {
-                    let Some(index_fn) = self.infer.method_resolution(expr_id) else {
-                        return Err(MirLowerError::UnresolvedMethod(
-                            "[overloaded index]".to_owned(),
-                        ));
-                    };
+                if let Some(index_fn) = self.infer.method_resolution(expr_id) {
                     let Some((base_place, current)) =
                         self.lower_expr_as_place(current, *base, true)?
                     else {
@@ -234,20 +228,19 @@ impl<'db> MirLowerCtx<'_, 'db> {
                         index_fn,
                     );
                 }
-                let adjusts = self
-                    .infer
-                    .expr_adjustments
-                    .get(base)
-                    .and_then(|it| it.split_last())
-                    .map(|it| it.1)
-                    .unwrap_or(&[]);
-                let Some((mut p_base, current)) =
-                    self.lower_expr_as_place_with_adjust(current, *base, true, adjusts)?
+                let index_ty = self.expr_ty_after_adjustments(*index);
+                if !matches!(index_ty.kind(), TyKind::Uint(rustc_ast_ir::UintTy::Usize))
+                    || !matches!(base_ty.kind(), TyKind::Array(..) | TyKind::Slice(..))
+                {
+                    // Neither builtin indexing nor a resolved `Index` impl: inference
+                    // failed on this expression.
+                    return Err(MirLowerError::UnresolvedMethod("[overloaded index]".to_owned()));
+                }
+                let Some((mut p_base, current)) = self.lower_expr_as_place(current, *base, true)?
                 else {
                     return Ok(None);
                 };
-                let l_index =
-                    self.temp(self.expr_ty_after_adjustments(*index), current, expr_id.into())?;
+                let l_index = self.temp(index_ty, current, expr_id.into())?;
                 let Some(current) = self.lower_expr_to_place(*index, l_index.into(), current)?
                 else {
                     return Ok(None);

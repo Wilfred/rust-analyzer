@@ -123,6 +123,37 @@ fn tuple_field() {
 }
 
 #[test]
+fn borrowck_index_through_slice_ref_without_index_trait_does_not_panic() {
+    // No minicore: the `Index` trait is unavailable, so inference fails to resolve the
+    // indexing and records no autoderef adjustments for `xs`. MIR lowering must report
+    // an error instead of projecting `Index` directly on the reference.
+    check_borrowck(
+        r#"
+pub fn f(xs: &mut [i32]) {
+    xs[0usize] = 1;
+}
+
+pub fn g(xs: &[i32]) -> i32 {
+    xs[0usize]
+}
+    "#,
+    );
+}
+
+#[test]
+fn borrowck_index_through_slice_ref_builtin() {
+    check_borrowck(
+        r#"
+//- minicore: sized, index, slice, copy
+pub fn f(xs: &mut [i32], ys: &[i32; 2], zs: [i32; 2]) -> i32 {
+    xs[0usize] = 1;
+    xs[1usize] + ys[0usize] + zs[1usize]
+}
+    "#,
+    );
+}
+
+#[test]
 fn borrowck_alias_projection_recovery_does_not_panic() {
     check_borrowck(
         r#"
