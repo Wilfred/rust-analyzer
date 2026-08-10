@@ -37,6 +37,7 @@ syntax-bridge.workspace = true
 
 [dev-dependencies]
 expect-test = "1.5.1"
+la-arena.workspace = true
 
 [features]
 in-rust-tree = ["syntax/in-rust-tree"]

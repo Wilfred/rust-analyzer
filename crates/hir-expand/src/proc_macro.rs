@@ -67,6 +67,16 @@ impl ProcMacrosBuilder {
         proc_macros_crate: CrateBuilderId,
         mut proc_macro: ProcMacroLoadResult,
     ) {
+        // A crate can be contributed by several workspaces, which need not all have a working
+        // proc-macro server. A workspace that failed to load must not revoke macros that another
+        // workspace already loaded successfully.
+        if proc_macro.is_err()
+            && let Some(existing) = self.0.get(&proc_macros_crate)
+            && existing.get_error().is_none()
+        {
+            return;
+        }
+
         if let Ok(proc_macros) = &mut proc_macro {
             // Sort proc macros to improve incrementality when only their order has changed (ideally the build system
             // will not change their order, but just to be sure).
@@ -365,5 +375,48 @@ impl CustomProcMacroExpander {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use base_db::{CrateBuilderId, ProcMacroLoadingError};
+    use la_arena::RawIdx;
+
+    use super::ProcMacrosBuilder;
+
+    fn srv_error() -> ProcMacroLoadingError {
+        ProcMacroLoadingError::ProcMacroSrvError("proc-macro-srv is not running".into())
+    }
+
+    /// A crate shared by two workspaces is deduplicated into one id, so both workspaces insert
+    /// under it. The one that could not reach a server must not win just by going last.
+    #[test]
+    fn failed_load_does_not_replace_successful_one() {
+        let krate = CrateBuilderId::from_raw(RawIdx::from_u32(0));
+
+        let mut builder = ProcMacrosBuilder::default();
+        builder.insert(krate, Ok(vec![]));
+        builder.insert(krate, Err(srv_error()));
+        assert!(builder.0[&krate].get_error().is_none(), "failure clobbered a successful load");
+    }
+
+    #[test]
+    fn successful_load_replaces_failed_one() {
+        let krate = CrateBuilderId::from_raw(RawIdx::from_u32(0));
+
+        let mut builder = ProcMacrosBuilder::default();
+        builder.insert(krate, Err(srv_error()));
+        builder.insert(krate, Ok(vec![]));
+        assert!(builder.0[&krate].get_error().is_none(), "success did not replace a failure");
+    }
+
+    #[test]
+    fn failure_is_recorded_when_nothing_succeeded() {
+        let krate = CrateBuilderId::from_raw(RawIdx::from_u32(0));
+
+        let mut builder = ProcMacrosBuilder::default();
+        builder.insert(krate, Err(srv_error()));
+        assert!(builder.0[&krate].get_error().is_some(), "failure should be reported");
     }
 }
