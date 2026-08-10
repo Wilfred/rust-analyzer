@@ -539,6 +539,11 @@ impl GlobalState {
             // we don't care about build-script results, they are stale.
             // FIXME: can we abort the build scripts here if they are already running?
             self.workspaces = Arc::new(workspaces);
+            // The proc-macro clients were spawned for the previous set. Record that here rather
+            // than re-deriving it later: this function returns below to wait for build scripts and
+            // is then called again, and by that point `same_workspaces` compares the fetch result
+            // against the `self.workspaces` we just assigned, so it can no longer tell us anything.
+            self.proc_macro_clients_stale = true;
             self.check_workspaces_msrv().for_each(|message| {
                 self.send_notification::<lsp_types::ShowMessageNotification>(
                     lsp_types::ShowMessageParams { kind: lsp_types::MessageType::Warning, message },
@@ -659,10 +664,11 @@ impl GlobalState {
             Config::user_config_dir_path().as_deref(),
         );
 
-        if (self.proc_macro_clients.is_empty() || !same_workspaces)
+        if (self.proc_macro_clients_stale || self.proc_macro_clients.is_empty())
             && self.config.expand_proc_macros()
         {
             info!("Spawning proc-macro servers");
+            self.proc_macro_clients_stale = false;
 
             // Workspaces referring to the same proc-macro server executable (i.e. the same
             // sysroot) with an identical spawn environment share a single client, and thereby

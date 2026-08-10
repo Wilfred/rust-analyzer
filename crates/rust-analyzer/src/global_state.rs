@@ -107,6 +107,10 @@ pub(crate) struct GlobalState {
 
     // proc macros
     pub(crate) proc_macro_clients: Arc<[Option<anyhow::Result<ProcMacroClient>>]>,
+    /// Set when `workspaces` is replaced by a different set, cleared when the clients are respawned
+    /// for it. Entry `i` of `proc_macro_clients` belongs to entry `i` of `workspaces`, so the two
+    /// have to be rebuilt together. See `GlobalState::switch_workspaces`.
+    pub(crate) proc_macro_clients_stale: bool,
     pub(crate) build_deps_changed: bool,
 
     // Flycheck
@@ -284,6 +288,7 @@ impl GlobalState {
             config_errors: Default::default(),
 
             proc_macro_clients: Arc::from_iter([]),
+            proc_macro_clients_stale: false,
 
             build_deps_changed: false,
 
