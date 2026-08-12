@@ -2068,6 +2068,7 @@ impl Config {
                 None => ide::SubstTyLen::Unlimited,
             },
             show_drop_glue: *self.hover_dropGlue_enable(),
+            eval_const_debug_impls: true,
             ra_fixture: self.ra_fixture(minicore),
         }
     }

@@ -528,6 +528,7 @@ pub(super) fn definition(
         Definition::Const(it) => {
             let body = it.eval(db);
             Some(match body {
+                Ok(it) if !config.eval_const_debug_impls => it.render(db, display_target),
                 Ok(it) => match it.render_debug(db) {
                     Ok(rendered) if rendered.is_empty() => it.render(db, display_target),
                     Ok(rendered) => rendered,
@@ -561,6 +562,7 @@ pub(super) fn definition(
         Definition::Static(it) => {
             let body = it.eval(db);
             Some(match body {
+                Ok(it) if !config.eval_const_debug_impls => it.render(db, display_target),
                 Ok(it) => match it.render_debug(db) {
                     Ok(rendered) if rendered.is_empty() => it.render(db, display_target),
                     Ok(rendered) => rendered,

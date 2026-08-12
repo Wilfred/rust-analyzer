@@ -191,6 +191,9 @@ impl<'a> StaticIndex<'a> {
             max_enum_variants_count: Some(5),
             max_subst_ty_len: SubstTyLen::Unlimited,
             show_drop_glue: true,
+            // Interpreting every const's `Debug` impl dominates the runtime of a
+            // whole-project index, for a value the plain rendering already conveys.
+            eval_const_debug_impls: false,
             ra_fixture: RaFixtureConfig::default(),
         };
         let mut result = StaticIndexedFile { file_id, folds, tokens: vec![] };

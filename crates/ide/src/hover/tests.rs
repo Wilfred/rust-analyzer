@@ -25,6 +25,7 @@ const HOVER_BASE_CONFIG: HoverConfig<'_> = HoverConfig {
     max_enum_variants_count: Some(5),
     max_subst_ty_len: super::SubstTyLen::Unlimited,
     show_drop_glue: true,
+    eval_const_debug_impls: true,
     ra_fixture: RaFixtureConfig::default(),
 };
 

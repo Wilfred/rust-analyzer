@@ -44,6 +44,11 @@ pub struct HoverConfig<'a> {
     pub max_enum_variants_count: Option<usize>,
     pub max_subst_ty_len: SubstTyLen,
     pub show_drop_glue: bool,
+    /// Whether to render the value of a `const` or `static` by running its `Debug`
+    /// impl. That interprets the impl's MIR, which is by far the most expensive part
+    /// of hovering, so batch indexers turn it off and settle for the plain rendering
+    /// of the evaluated value.
+    pub eval_const_debug_impls: bool,
     pub ra_fixture: RaFixtureConfig<'a>,
 }
 
