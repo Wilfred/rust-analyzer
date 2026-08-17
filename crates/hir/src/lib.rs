@@ -577,7 +577,13 @@ impl HasCrate for ModuleDef {
     fn krate(&self, db: &dyn HirDatabase) -> Crate {
         match self.module(db) {
             Some(module) => module.krate(db),
-            None => Crate::core(db).unwrap_or_else(|| all_crates(db)[0].into()),
+            None => Crate::core(db).unwrap_or_else(|| {
+                all_crates(db)
+                    .first()
+                    .copied()
+                    .expect("getting the crate for a builtin definition requires a non-empty crate graph")
+                    .into()
+            }),
         }
     }
 }
@@ -1606,7 +1612,8 @@ impl Enum {
     pub fn variant_body_ty<'db>(self, db: &'db dyn HirDatabase) -> Type<'db> {
         let interner = DbInterner::new_no_crate(db);
         Type::no_params(
-            Type::builtin_type_crate(db),
+            Type::builtin_type_crate(db)
+                .expect("creating an enum variant body type requires a non-empty crate graph"),
             match EnumSignature::variant_body_type(db, self.id) {
                 layout::IntegerType::Pointer(sign) => match sign {
                     true => Ty::new_int(interner, rustc_type_ir::IntTy::Isize),
@@ -3115,7 +3122,11 @@ impl BuiltinType {
 
     pub fn ty<'db>(self, db: &'db dyn HirDatabase) -> Type<'db> {
         let interner = DbInterner::new_no_crate(db);
-        Type::no_params(Type::builtin_type_crate(db), Ty::from_builtin_type(interner, self.inner))
+        Type::no_params(
+            Type::builtin_type_crate(db)
+                .expect("creating a builtin type requires a non-empty crate graph"),
+            Ty::from_builtin_type(interner, self.inner),
+        )
     }
 
     pub fn name(self) -> Name {
@@ -5271,9 +5282,9 @@ impl<'db> Type<'db> {
         Type { owner: TypeOwnerId::NoParams(krate), ty: EarlyBinder::bind(ty) }
     }
 
-    fn builtin_type_crate(db: &'db dyn HirDatabase) -> base_db::Crate {
+    fn builtin_type_crate(db: &'db dyn HirDatabase) -> Option<base_db::Crate> {
         // It doesn't really matter.
-        all_crates(db)[0]
+        all_crates(db).first().copied()
     }
 
     fn from_def(db: &'db dyn HirDatabase, def: impl Into<TyDefId>) -> Self {
@@ -5282,7 +5293,9 @@ impl<'db> Type<'db> {
         let owner = match def {
             TyDefId::AdtId(it) => TypeOwnerId::GenericDefId(GenericDefId::AdtId(it)),
             TyDefId::TypeAliasId(it) => TypeOwnerId::GenericDefId(GenericDefId::TypeAliasId(it)),
-            TyDefId::BuiltinType(_) => TypeOwnerId::NoParams(Self::builtin_type_crate(db)),
+            TyDefId::BuiltinType(_) => TypeOwnerId::NoParams(Self::builtin_type_crate(db).expect(
+                "creating a type from a builtin definition requires a non-empty crate graph",
+            )),
         };
         Type { owner, ty }
     }
@@ -5412,7 +5425,8 @@ impl<'db> Type<'db> {
     pub fn unknown() -> Self {
         let interner = DbInterner::conjure();
         Type::no_params(
-            Self::builtin_type_crate(interner.db()),
+            Self::builtin_type_crate(interner.db())
+                .expect("creating an unknown type requires a non-empty crate graph"),
             Ty::new_error(interner, ErrorGuaranteed),
         )
     }
@@ -5441,14 +5455,22 @@ impl<'db> Type<'db> {
                 ty.ty.skip_binder()
             }),
         ));
-        let owner =
-            owner.unwrap_or_else(|| TypeOwnerId::NoParams(Self::builtin_type_crate(interner.db())));
+        let owner = owner.unwrap_or_else(|| {
+            TypeOwnerId::NoParams(
+                Self::builtin_type_crate(interner.db())
+                    .expect("creating an empty tuple type requires a non-empty crate graph"),
+            )
+        });
         Type { owner, ty }
     }
 
     pub fn new_unit() -> Self {
         let interner = DbInterner::conjure();
-        Type::no_params(Self::builtin_type_crate(interner.db()), Ty::new_unit(interner))
+        Type::no_params(
+            Self::builtin_type_crate(interner.db())
+                .expect("creating a unit type requires a non-empty crate graph"),
+            Ty::new_unit(interner),
+        )
     }
 
     pub fn is_unit(&self) -> bool {
@@ -7384,8 +7406,11 @@ fn generic_args_from_tys<'db>(
             next_solver::GenericArg::error_from_id(interner, id)
         }
     });
-    let owner =
-        owner.unwrap_or_else(|| TypeOwnerId::NoParams(Type::builtin_type_crate(interner.db())));
+    let owner = owner.unwrap_or_else(|| {
+        TypeOwnerId::NoParams(Type::builtin_type_crate(interner.db()).expect(
+            "creating generic arguments without a type owner requires a non-empty crate graph",
+        ))
+    });
     (args, owner)
 }
 
