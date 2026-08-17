@@ -638,6 +638,45 @@ pub type Ty = ();
     );
 }
 
+#[test]
+fn renamed_struct_id_is_discarded() {
+    use crate::{AdtId, AttrDefId, ModuleDefId, attrs::AttrFlags};
+    use salsa::{EventKind, plumbing::AsId};
+
+    let (mut db, pos) = TestDB::with_position(
+        r#"
+//- /lib.rs
+$0struct Foo;
+"#,
+    );
+    let krate = db.fetch_test_crate();
+    let find_struct = |db: &TestDB| {
+        crate_def_map(db, krate)
+            .modules()
+            .flat_map(|(_, data)| data.scope.declarations())
+            .find_map(|it| match it {
+                ModuleDefId::AdtId(AdtId::StructId(it)) => Some(it),
+                _ => None,
+            })
+            .expect("no struct")
+    };
+    let struct_id = find_struct(&db);
+    let owner = AttrDefId::AdtId(AdtId::StructId(struct_id));
+    let old_raw_id = struct_id.as_id();
+
+    AttrFlags::query(&db, owner);
+
+    db.set_file_text(pos.file_id.file_id(&db), "struct Bar;\n");
+
+    let events = db.log(|| {
+        let struct_id = find_struct(&db);
+        AttrFlags::query(&db, AttrDefId::AdtId(AdtId::StructId(struct_id)));
+    });
+    assert!(events.iter().any(
+        |event| matches!(event.kind, EventKind::DidDiscard { key } if key.key_index() == old_raw_id)
+    ));
+}
+
 fn execute_assert_events(
     db: &TestDB,
     f: impl FnOnce(),
