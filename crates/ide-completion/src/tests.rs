@@ -333,6 +333,27 @@ fn test_no_completions_in_for_loop_in_kw_pos() {
 }
 
 #[test]
+fn completion_on_ambiguous_float_literal_with_empty_crate_graph() {
+    use base_db::{FileChange, FileId, FileSet, SourceRoot, VfsPath};
+
+    let mut db = RootDatabase::default();
+    let file_id = FileId::from_raw(0);
+    let text = "fn main() { let x = 123.; }\n";
+
+    let mut file_set = FileSet::default();
+    file_set.insert(file_id, VfsPath::new_virtual_path("/main.rs".to_owned()));
+
+    let mut change = FileChange::default();
+    change.set_roots(vec![SourceRoot::new_local(file_set)]);
+    change.change_file(file_id, Some(text.to_owned()));
+    change.apply(&mut db);
+
+    let position = FilePosition { file_id, offset: 24.into() };
+    let items = crate::completions(&db, &TEST_CONFIG, position, Some('.'));
+    assert!(items.is_none_or(|it| it.is_empty()));
+}
+
+#[test]
 fn regression_10042() {
     completion_list(
         r#"

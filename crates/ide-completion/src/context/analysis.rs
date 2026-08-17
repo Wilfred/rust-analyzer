@@ -1012,6 +1012,9 @@ fn classify_name_ref<'db>(
         if receiver_is_ambiguous_float_literal {
             // `123.|` is parsed as a float but should actually be an integer.
             always!(receiver_ty.as_ref().is_none_or(|receiver_ty| receiver_ty.original.is_float()));
+            if base_db::all_crates(sema.db).is_empty() {
+                return None;
+            }
             receiver_ty =
                 Some(TypeInfo { original: hir::BuiltinType::i32().ty(sema.db), adjusted: None });
         }
