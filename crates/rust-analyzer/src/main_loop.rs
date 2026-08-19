@@ -982,6 +982,15 @@ impl GlobalState {
     ) {
         let _p = tracing::info_span!("GlobalState::handle_vfs_msg").entered();
         let is_changed = matches!(message, vfs::loader::Message::Changed { .. });
+        // Logged here rather than left to the "overly long loop turn" warning, which fires only
+        // for turns over 100ms: a fast change left no trace at all, which makes an
+        // after-the-fact log useless for telling an editor keystroke apart from a branch switch
+        // or a workspace regeneration. Empty batches are common and carry nothing, so skip them.
+        if let vfs::loader::Message::Changed { files } = &message
+            && !files.is_empty()
+        {
+            tracing::info!(?message, "vfs file change");
+        }
         match message {
             vfs::loader::Message::Changed { files } | vfs::loader::Message::Loaded { files } => {
                 let _p = tracing::info_span!("GlobalState::handle_vfs_msg{changed/load}").entered();

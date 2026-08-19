@@ -211,15 +211,47 @@ fn dirs(base: AbsPathBuf, exclude: &[&str]) -> Directories {
     Directories { extensions: vec!["rs".to_owned()], include: vec![base], exclude }
 }
 
+/// How many paths a [`Message`] lists before the rest are elided. A workspace reload can
+/// change tens of thousands of files at once, so the list has to be bounded, but knowing
+/// *which* files changed is usually the whole question when reading a log after the fact.
+const MAX_LOGGED_PATHS: usize = 8;
+
+/// Formats a bounded sample of the paths in a [`Message`], marking deleted ones.
+struct LoggedPaths<'a>(&'a [(AbsPathBuf, Option<Vec<u8>>)]);
+
+impl fmt::Debug for LoggedPaths<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut list = f.debug_list();
+        for (path, contents) in self.0.iter().take(MAX_LOGGED_PATHS) {
+            let deleted = if contents.is_none() { " (deleted)" } else { "" };
+            list.entry(&format!("{path}{deleted}"));
+        }
+        if let Some(rest) = self.0.len().checked_sub(MAX_LOGGED_PATHS).filter(|&it| it > 0) {
+            // Unquoted, unlike the paths above, so it can't be mistaken for one.
+            list.entry(&format_args!("+{rest} more"));
+        }
+        list.finish()
+    }
+}
+
+fn n_deleted(files: &[(AbsPathBuf, Option<Vec<u8>>)]) -> usize {
+    files.iter().filter(|(_, contents)| contents.is_none()).count()
+}
+
 impl fmt::Debug for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Message::Loaded { files } => {
-                f.debug_struct("Loaded").field("n_files", &files.len()).finish()
-            }
-            Message::Changed { files } => {
-                f.debug_struct("Changed").field("n_files", &files.len()).finish()
-            }
+            Message::Loaded { files } => f
+                .debug_struct("Loaded")
+                .field("n_files", &files.len())
+                .field("files", &LoggedPaths(files))
+                .finish(),
+            Message::Changed { files } => f
+                .debug_struct("Changed")
+                .field("n_files", &files.len())
+                .field("n_deleted", &n_deleted(files))
+                .field("files", &LoggedPaths(files))
+                .finish(),
             Message::Progress { n_total, n_done, dir, config_version } => f
                 .debug_struct("Progress")
                 .field("n_total", n_total)
@@ -234,4 +266,42 @@ impl fmt::Debug for Message {
 #[test]
 fn handle_is_dyn_compatible() {
     fn _assert(_: &dyn Handle) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn changed(paths: &[(&str, bool)]) -> Message {
+        Message::Changed {
+            files: paths
+                .iter()
+                .map(|&(p, exists)| {
+                    (AbsPathBuf::assert_utf8(p.into()), exists.then(|| b"fn f() {}".to_vec()))
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn changed_lists_paths_and_deletions() {
+        assert_eq!(
+            format!("{:?}", changed(&[("/w/src/lib.rs", true), ("/w/src/old.rs", false)])),
+            r#"Changed { n_files: 2, n_deleted: 1, files: ["/w/src/lib.rs", "/w/src/old.rs (deleted)"] }"#
+        );
+    }
+
+    #[test]
+    fn changed_elides_beyond_the_cap() {
+        let paths = (0..MAX_LOGGED_PATHS + 3)
+            .map(|i| (format!("/w/src/f{i}.rs"), true))
+            .collect::<Vec<_>>();
+        let paths = paths.iter().map(|(p, e)| (p.as_str(), *e)).collect::<Vec<_>>();
+        let rendered = format!("{:?}", changed(&paths));
+        assert!(
+            rendered.starts_with(r#"Changed { n_files: 11, n_deleted: 0, files: ["/w/src/f0.rs""#),
+            "{rendered}"
+        );
+        assert!(rendered.ends_with(r#""/w/src/f7.rs", +3 more] }"#), "{rendered}");
+    }
 }
