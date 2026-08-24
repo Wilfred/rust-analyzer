@@ -387,3 +387,32 @@ Some multi-line comment$0
         String::new(),
     );
 }
+
+#[test]
+fn completion_on_ambiguous_float_literal_with_empty_crate_graph() {
+    use base_db::{FileChange, FileId, FileSet, SourceRoot, VfsPath};
+
+    // A `RootDatabase` with no crates at all. This is the state the server is in
+    // before the first workspace load finishes, and permanently if project
+    // discovery fails.
+    let mut db = RootDatabase::default();
+
+    let file_id = FileId::from_raw(0);
+    let text = "fn main() { let x = 123.; }\n";
+
+    let mut file_set = FileSet::default();
+    file_set.insert(file_id, VfsPath::new_virtual_path("/main.rs".to_owned()));
+
+    let mut change = FileChange::default();
+    change.set_roots(vec![SourceRoot::new_local(file_set)]);
+    change.change_file(file_id, Some(text.to_owned()));
+    change.apply(&mut db);
+
+    // Offset 24 is immediately after the `.` of `123.`, which the parser sees as
+    // an ambiguous float literal.
+    let position = ide_db::FilePosition { file_id, offset: 24.into() };
+
+    // Must not panic: with no crates there is simply nothing to complete.
+    let items = crate::completions(&db, &TEST_CONFIG, position, Some('.'));
+    assert!(items.is_none_or(|it| it.is_empty()));
+}

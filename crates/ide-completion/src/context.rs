@@ -747,6 +747,14 @@ impl<'a, 'db> CompletionContext<'a, 'db> {
         trigger_character: Option<char>,
     ) -> Option<(CompletionContext<'a, 'db>, CompletionAnalysis<'db>)> {
         let _p = tracing::info_span!("CompletionContext::new").entered();
+
+        // Without a crate graph there is nothing to complete, and various `hir`
+        // entry points (e.g. `BuiltinType::ty`, which needs an arbitrary crate to
+        // anchor a builtin type to) cannot be called at all.
+        if base_db::all_crates(db).is_empty() {
+            return None;
+        }
+
         let sema = Semantics::new(db);
 
         let editioned_file_id = sema.attach_first_edition(file_id);
