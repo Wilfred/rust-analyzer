@@ -2258,6 +2258,23 @@ const GOAL: usize = {
 }
 
 #[test]
+fn index_with_unresolved_index_operator() {
+    // Inference did not resolve `Index` for `xs[0usize]` (the fixture omits the trait to force this),
+    // so `xs` has no autoderef/autoref adjustments and must not be indexed as a place.
+    check_fail(
+        r#"
+//- minicore: coerce_unsized
+const GOAL: i32 = {
+    let xs: &mut [i32] = &mut [0; 1];
+    xs[0usize] = 1;
+    0
+};
+"#,
+        |e| matches!(e, ConstEvalError::MirLowerError(MirLowerError::UnresolvedMethod(_))),
+    );
+}
+
+#[test]
 fn array_and_index() {
     check_number(
         r#"
