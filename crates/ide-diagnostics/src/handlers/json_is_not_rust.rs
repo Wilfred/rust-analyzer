@@ -13,6 +13,7 @@ use stdx::{format_to, never};
 use syntax::{
     Edition, SyntaxKind, SyntaxNode,
     ast::{self, make},
+    utils::{is_identifier, is_raw_identifier},
 };
 
 use crate::{Diagnostic, DiagnosticCode, DiagnosticsConfig, Severity, fix};
@@ -25,8 +26,16 @@ struct State {
     names: FxHashMap<String, usize>,
 }
 
+/// `make::name` reparses `mod <name>;` and panics on anything that is not an identifier, so JSON
+/// keys have to be checked before they reach it. `is_identifier` accepts the reserved `_`, which
+/// does not parse either.
+fn is_valid_name(name: &str) -> bool {
+    name != "_"
+        && (is_identifier(name, Edition::CURRENT) || is_raw_identifier(name, Edition::CURRENT))
+}
+
 impl State {
-    fn generate_new_name(&mut self, name: &str) -> ast::Name {
+    fn generate_new_name(&mut self, name: &str) -> Option<ast::Name> {
         let name = stdx::to_camel_case(name);
         let count = if let Some(count) = self.names.get_mut(&name) {
             *count += 1;
@@ -35,7 +44,8 @@ impl State {
             self.names.insert(name.clone(), 1);
             1
         };
-        make::name(&format!("{name}{count}"))
+        let name = format!("{name}{count}");
+        is_valid_name(&name).then(|| make::name(&name))
     }
 
     fn serde_derive(&self) -> String {
@@ -61,39 +71,39 @@ impl State {
         &mut self,
         name: &str,
         value: &serde_json::Map<String, serde_json::Value>,
-    ) -> ast::Type {
-        let name = self.generate_new_name(name);
+    ) -> Option<ast::Type> {
+        let name = self.generate_new_name(name)?;
         let ty = make::ty(&name.to_string());
-        let strukt = make::struct_(
-            None,
-            name,
-            None,
-            make::record_field_list(value.iter().sorted_unstable_by_key(|x| x.0).map(
-                |(name, value)| {
-                    make::record_field(None, make::name(name), self.type_of(name, value))
-                },
-            ))
-            .into(),
-        );
+        let fields = value
+            .iter()
+            .sorted_unstable_by_key(|x| x.0)
+            .map(|(name, value)| {
+                if !is_valid_name(name) {
+                    return None;
+                }
+                Some(make::record_field(None, make::name(name), self.type_of(name, value)?))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let strukt = make::struct_(None, name, None, make::record_field_list(fields).into());
         format_to!(self.result, "{}{}\n", self.serde_derive(), strukt);
-        ty
+        Some(ty)
     }
 
-    fn type_of(&mut self, name: &str, value: &serde_json::Value) -> ast::Type {
-        match value {
+    fn type_of(&mut self, name: &str, value: &serde_json::Value) -> Option<ast::Type> {
+        Some(match value {
             serde_json::Value::Null => make::ty_unit(),
             serde_json::Value::Bool(_) => make::ty("bool"),
             serde_json::Value::Number(it) => make::ty(if it.is_i64() { "i64" } else { "f64" }),
             serde_json::Value::String(_) => make::ty("String"),
             serde_json::Value::Array(it) => {
                 let ty = match it.iter().next() {
-                    Some(x) => self.type_of(name, x),
+                    Some(x) => self.type_of(name, x)?,
                     None => make::ty_placeholder(),
                 };
                 make::ty(&format!("Vec<{ty}>"))
             }
-            serde_json::Value::Object(x) => self.build_struct(name, x),
-        }
+            serde_json::Value::Object(x) => self.build_struct(name, x)?,
+        })
     }
 }
 
@@ -125,7 +135,8 @@ pub(crate) fn json_in_items(
                 let serialize_resolved = scope_resolve("::serde::Serialize");
                 state.has_deserialize = deserialize_resolved.is_some();
                 state.has_serialize = serialize_resolved.is_some();
-                state.build_struct("Root", &it);
+                // A key that is not a Rust identifier has no name to generate, so offer nothing.
+                state.build_struct("Root", &it)?;
                 edit.insert(range.start(), state.result);
                 let vfs_file_id = file_id.file_id(sema.db);
                 acc.push(
@@ -339,6 +350,40 @@ mod tests {
             struct Root1 { empty: Vec<_>, nested: Vec<Vec<Vec<i64>>>, of_object: Vec<OfObject1>, of_string: Vec<String> }
 
             "#,
+        );
+    }
+
+    #[test]
+    fn no_emit_for_keys_that_are_not_identifiers() {
+        let mut config = DiagnosticsConfig::test_sample();
+        config.disabled.insert("syntax-error".to_owned());
+        // `@odata.id` is not an identifier at all; `Self` is one of the keywords that cannot be
+        // raw-escaped; `_` parses as an identifier but is reserved. Contrast `box` in
+        // `types_of_primitives`, which is a keyword that *can* be raw-escaped.
+        check_diagnostics_with_config(
+            config.clone(),
+            r#"
+            { "@odata.id": 1 }
+"#,
+        );
+        check_diagnostics_with_config(
+            config.clone(),
+            r#"
+            { "Self": 1 }
+"#,
+        );
+        check_diagnostics_with_config(
+            config.clone(),
+            r#"
+            { "_": 1 }
+"#,
+        );
+        // Nested, and in a struct name rather than a field name.
+        check_diagnostics_with_config(
+            config,
+            r#"
+            { "foo": { "@odata.id": 1 } }
+"#,
         );
     }
 
