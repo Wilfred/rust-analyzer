@@ -3232,3 +3232,43 @@ fn main() {
     "#,
     );
 }
+
+#[test]
+fn closure_call_in_const_block_pat() {
+    check_no_mismatches(
+        r#"
+//- minicore: fn
+pub fn f() {
+    let const { (|| 1u8)(); 1usize } = 1usize;
+}
+    "#,
+    );
+}
+
+#[test]
+fn closure_call_in_const_block_pat_in_match_arm() {
+    check_no_mismatches(
+        r#"
+//- minicore: fn
+pub fn f() -> usize {
+    match 1usize {
+        const { (|| 1u8)(); 1usize } => 1usize,
+        _ => 2usize,
+    }
+}
+    "#,
+    );
+}
+
+#[test]
+fn const_block_pat_peels_references() {
+    check_no_mismatches(
+        r#"
+fn main() {
+    if let const { 0 } = &&0 {}
+    if let const { 0u8 } = &&&0u8 {}
+    match &&1usize { const { 1usize } => (), _ => () }
+}
+    "#,
+    );
+}

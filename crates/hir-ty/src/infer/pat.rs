@@ -531,7 +531,19 @@ impl<'db> InferenceContext<'db> {
             }
             Pat::Expr(expr) => self.infer_destructuring_assignment_expr(expr, expected),
             Pat::ConstBlock(expr) => {
-                self.infer_expr(expr, &Expectation::has_type(expected), ExprIsRead::Yes)
+                // We've already computed the type above (when checking for a non-ref pat),
+                // so avoid computing it again. A second inference mints a fresh closure type
+                // for every closure in the block, so the deferred call resolutions recorded
+                // against the first one are left with an unconstrained closure kind.
+                let ty = self.expr_ty(expr);
+                // Blame the block's tail, which is the expression that produced the value.
+                // Pointing at the whole block would regress the mismatch's span.
+                let blame = match self.store[expr] {
+                    Expr::Block { tail: Some(tail), .. } => tail,
+                    _ => expr,
+                };
+                _ = self.demand_suptype(blame.into(), expected, ty);
+                ty
             }
         }
     }
