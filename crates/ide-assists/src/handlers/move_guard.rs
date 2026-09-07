@@ -58,7 +58,11 @@ pub(crate) fn move_guard_to_arm_body(acc: &mut Assists, ctx: &AssistContext<'_, 
         .rfold(None, |else_branch, arm| {
             if let Some(guard) = arm.guard() {
                 let then_branch = crate::utils::wrap_block(&arm.expr()?, &make);
-                let guard_condition = guard.condition()?.reset_indent();
+                let mut guard_condition = guard.condition()?.reset_indent();
+                // A guard admits an exterior struct literal, an `if` condition does not.
+                if guard_condition.contains_exterior_struct_lit() {
+                    guard_condition = make.expr_paren(guard_condition).into();
+                }
                 Some(make.expr_if(guard_condition, then_branch, else_branch).into())
             } else {
                 arm.expr().map(|it| crate::utils::wrap_block(&it, &make).into())
@@ -352,6 +356,60 @@ fn main() {
 }
 "#,
             r#"if x > 10"#,
+        );
+    }
+
+    #[test]
+    fn move_guard_to_arm_body_parenthesizes_struct_literal() {
+        check_assist(
+            move_guard_to_arm_body,
+            r#"
+struct S { f: i32 }
+fn main() {
+    match 92 {
+        x $0if S { f: x } == y => false,
+        _ => true
+    }
+}
+"#,
+            r#"
+struct S { f: i32 }
+fn main() {
+    match 92 {
+        x => if (S { f: x } == y) {
+            false
+        },
+        _ => true
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn move_guard_to_arm_body_parenthesizes_trailing_struct_literal() {
+        check_assist(
+            move_guard_to_arm_body,
+            r#"
+struct S { f: i32 }
+fn main() {
+    match 92 {
+        x $0if y == S { f: x } => false,
+        _ => true
+    }
+}
+"#,
+            r#"
+struct S { f: i32 }
+fn main() {
+    match 92 {
+        x => if (y == S { f: x }) {
+            false
+        },
+        _ => true
+    }
+}
+"#,
         );
     }
 

@@ -437,7 +437,7 @@ impl Expr {
     /// Expressions that syntactically contain an "exterior" struct literal i.e., not surrounded by any
     /// parens or other delimiters, e.g., `X { y: 1 }`, `X { y: 1 }.method()`, `foo == X { y: 1 }` and
     /// `X { y: 1 } == foo` all do, but `(X { y: 1 }) == foo` does not.
-    fn contains_exterior_struct_lit(&self) -> bool {
+    pub fn contains_exterior_struct_lit(&self) -> bool {
         return contains_exterior_struct_lit_inner(self).is_some();
 
         fn contains_exterior_struct_lit_inner(expr: &Expr) -> Option<()> {
