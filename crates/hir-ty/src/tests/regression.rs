@@ -3232,3 +3232,42 @@ fn main() {
     "#,
     );
 }
+
+#[test]
+fn closure_call_in_anon_const_in_array_length() {
+    check_no_mismatches(
+        r#"
+//- minicore: fn
+fn main() {
+    let _x: [u8; { let f = || 0usize; f() }] = loop {};
+}
+    "#,
+    );
+}
+
+#[test]
+fn closure_call_in_anon_const_in_closure_signature() {
+    check_no_mismatches(
+        r#"
+//- minicore: fn
+fn main() {
+    let _param = |_: [u8; { let f = || 0usize; f() }]| {};
+    let _ret = || -> [u8; { let f = || 0usize; f() }] { loop {} };
+}
+    "#,
+    );
+}
+
+#[test]
+fn closure_call_in_anon_const_in_closure_body() {
+    check_no_mismatches(
+        r#"
+//- minicore: fn
+fn main() {
+    let _g = || {
+        let _x: [u8; { let f = || 0usize; f() }] = loop {};
+    };
+}
+    "#,
+    );
+}

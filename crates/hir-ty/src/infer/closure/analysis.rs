@@ -53,7 +53,7 @@ use span::Edition;
 use tracing::{debug, instrument};
 
 use crate::{
-    Span,
+    InferBodyId, Span,
     infer::{
         CaptureInfo, CaptureSourceStack, CapturedPlace, InferenceContext, UpvarCapture,
         closure::analysis::expr_use_visitor::{
@@ -198,8 +198,19 @@ impl<'db> InferenceContext<'db> {
     pub(crate) fn closure_analyze(&mut self) {
         let upvars = crate::upvars::upvars_mentioned(self.db, self.store_owner)
             .unwrap_or(const { &FxHashMap::with_hasher(FxBuildHasher) });
-        for root_expr in self.store.expr_roots() {
-            self.analyze_closures_in_expr(root_expr, upvars);
+        match self.owner {
+            // An anon const nested inside a body shares the enclosing body's store but is
+            // inferred on its own, and lowering never registers it as an expression root, so
+            // `expr_roots()` would hand us the enclosing body instead of the const.
+            InferBodyId::AnonConstId(_) => {
+                let (_, root_expr) = self.owner.store_and_root_expr(self.db);
+                self.analyze_closures_in_expr(root_expr, upvars);
+            }
+            InferBodyId::DefWithBodyId(_) => {
+                for root_expr in self.store.expr_roots() {
+                    self.analyze_closures_in_expr(root_expr, upvars);
+                }
+            }
         }
 
         // it's our job to process these.
