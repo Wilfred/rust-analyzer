@@ -3216,3 +3216,26 @@ fn main() {
     "#,
     );
 }
+
+#[test]
+fn generic_associated_opaque_with_lifetime() {
+    check_no_mismatches(
+        r#"
+trait Trait {
+    type Assoc<'a, T>
+    where
+        Self: 'a;
+
+    fn make<T>(&mut self, value: T) -> Self::Assoc<'_, T>;
+}
+
+impl Trait for () {
+    type Assoc<'a, T> = impl Sized where Self: 'a;
+
+    fn make<T>(&mut self, value: T) -> Self::Assoc<'_, T> {
+        value
+    }
+}
+"#,
+    );
+}

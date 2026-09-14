@@ -1,16 +1,54 @@
 //! Defining opaque types via inference.
 
-use rustc_type_ir::{TypeVisitableExt, fold_regions};
+use rustc_hash::FxHashMap;
+use rustc_type_ir::{
+    TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitableExt, fold_regions,
+    inherent::{GenericArg as _, GenericArgs as _, IntoKind, Ty as _},
+};
 use tracing::{debug, instrument};
 
 use crate::{
     Span,
     infer::InferenceContext,
     next_solver::{
-        EarlyBinder, OpaqueTypeKey, SolverDefId, TypingMode,
+        Const, ConstKind, DbInterner, EarlyBinder, ErrorGuaranteed, GenericArg, GenericArgs,
+        OpaqueTypeKey, SolverDefId, Ty, TyKind, TypingMode,
         infer::{opaque_types::OpaqueHiddenType, traits::ObligationCause},
     },
 };
+
+struct ReverseMapper<'db> {
+    interner: DbInterner<'db>,
+    map: FxHashMap<GenericArg<'db>, GenericArg<'db>>,
+}
+
+impl<'db> TypeFolder<DbInterner<'db>> for ReverseMapper<'db> {
+    fn cx(&self) -> DbInterner<'db> {
+        self.interner
+    }
+
+    fn fold_ty(&mut self, ty: Ty<'db>) -> Ty<'db> {
+        if matches!(ty.kind(), TyKind::Param(_)) {
+            return self
+                .map
+                .get(&ty.into())
+                .and_then(|arg| arg.as_type())
+                .unwrap_or_else(|| Ty::new_error(self.interner, ErrorGuaranteed));
+        }
+        ty.super_fold_with(self)
+    }
+
+    fn fold_const(&mut self, konst: Const<'db>) -> Const<'db> {
+        if matches!(konst.kind(), ConstKind::Param(_)) {
+            return self
+                .map
+                .get(&konst.into())
+                .and_then(|arg| arg.as_const())
+                .unwrap_or_else(|| Const::error(self.interner));
+        }
+        konst.super_fold_with(self)
+    }
+}
 
 impl<'db> InferenceContext<'db> {
     /// This takes all the opaque type uses during HIR typeck. It first computes
@@ -146,6 +184,11 @@ impl<'db> InferenceContext<'db> {
         };
         let hidden_type =
             fold_regions(self.interner(), hidden_type, |_, _| self.types.regions.erased);
+        let identity_args =
+            GenericArgs::identity_for_item(self.interner(), opaque_type_key.def_id.into());
+        let map = opaque_type_key.args.iter().zip(identity_args).collect();
+        let hidden_type =
+            hidden_type.fold_with(&mut ReverseMapper { interner: self.interner(), map });
         UsageKind::HasDefiningUse(hidden_type)
     }
 }
