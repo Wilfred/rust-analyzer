@@ -154,6 +154,31 @@ fn add() {
 }
 
 #[test]
+fn const_with_empty_enum_field_does_not_panic() {
+    check_answer(
+        r#"
+enum Never {}
+
+union Transmute {
+    unit: (),
+    never: Never,
+}
+
+struct Wrapper {
+    never: Never,
+    value: u8,
+}
+
+const GOAL: Wrapper = Wrapper {
+    never: unsafe { Transmute { unit: () }.never },
+    value: 1,
+};
+"#,
+        |_, _| {},
+    );
+}
+
+#[test]
 fn bit_op() {
     check_number(r#"const GOAL: u8 = !0 & !(!0 >> 1)"#, 128);
     check_number(r#"const GOAL: i8 = !0 & !(!0 >> 1)"#, 0);
