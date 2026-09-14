@@ -3206,6 +3206,29 @@ fn f<'a>(_: fn() -> &'a dyn Trait<'a>) {}
 }
 
 #[test]
+fn normalize_projection_with_late_bound_lifetime() {
+    check_no_mismatches(
+        r#"
+trait Trait<'a> {
+    type Input: Input;
+}
+trait Input {
+    fn make();
+}
+trait Wrapper {
+    fn eval<'a>(&'a self);
+}
+
+impl<T: for<'a> Trait<'a>> Wrapper for T {
+    fn eval<'a>(&'a self) {
+        T::Input::make();
+    }
+}
+"#,
+    );
+}
+
+#[test]
 fn regression_23113() {
     check_no_mismatches(
         r#"

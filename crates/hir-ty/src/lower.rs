@@ -69,8 +69,8 @@ use crate::{
         AliasTy, Binder, BoundExistentialPredicates, BoundVarKinds, Clause, ClauseKind, Clauses,
         Const, ConstKind, DbInterner, DefaultAny, EarlyBinder, EarlyParamRegion, ErrorGuaranteed,
         FnSigKind, FxIndexMap, GenericArg, GenericArgs, ParamConst, ParamEnv, PatList, Pattern,
-        PolyFnSig, Predicate, Region, StoredClauses, StoredConst, StoredEarlyBinder,
-        StoredGenericArg, StoredGenericArgs, StoredPolyFnSig, StoredTraitRef, StoredTy,
+        PolyFnSig, Predicate, Region, StoredBoundVarKinds, StoredClauses, StoredConst,
+        StoredEarlyBinder, StoredGenericArg, StoredPolyFnSig, StoredTraitRef, StoredTy,
         TraitPredicate, TraitRef, Ty, Tys, Unnormalized, abi::Safety, mk_param,
         util::BottomUpFolder,
     },
@@ -340,7 +340,11 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
 
     #[track_caller]
     pub(crate) fn expect_table(&mut self) -> &mut InferenceTable<'db> {
-        self.infer_vars.as_mut().unwrap().as_table().unwrap()
+        self.table().unwrap()
+    }
+
+    pub(crate) fn table(&mut self) -> Option<&mut InferenceTable<'db>> {
+        self.infer_vars.as_mut()?.as_table()
     }
 
     fn next_ty_var(&mut self, span: Span) -> Ty<'db> {
@@ -2070,15 +2074,36 @@ impl SupertraitsInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum AssocTypeShorthandResolution {
-    Resolved(StoredEarlyBinder<(TypeAliasId, StoredGenericArgs)>),
+    Resolved(StoredEarlyBinder<StoredAssocTypeShorthand>),
     Ambiguous {
         /// If one resolution belongs to a sub-trait and one to a supertrait, this contains
         /// the sub-trait's resolution. This can be `None` if there is no trait inheritance
         /// relationship between the resolutions.
-        sub_trait_resolution: Option<StoredEarlyBinder<(TypeAliasId, StoredGenericArgs)>>,
+        sub_trait_resolution: Option<StoredEarlyBinder<StoredAssocTypeShorthand>>,
     },
     NotFound,
     Cycle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct StoredAssocTypeShorthand {
+    assoc_type: TypeAliasId,
+    trait_ref: StoredTraitRef,
+    bound_vars: StoredBoundVarKinds,
+}
+
+impl StoredAssocTypeShorthand {
+    fn new(assoc_type: TypeAliasId, trait_ref: Binder<'_, TraitRef<'_>>) -> Self {
+        let bound_vars = trait_ref.bound_vars().store();
+        Self { assoc_type, trait_ref: StoredTraitRef::new(trait_ref.skip_binder()), bound_vars }
+    }
+
+    fn get<'db>(&'db self, interner: DbInterner<'db>) -> (TypeAliasId, Binder<'db, TraitRef<'db>>) {
+        (
+            self.assoc_type,
+            Binder::bind_with_vars(self.trait_ref.get(interner), self.bound_vars.as_ref()),
+        )
+    }
 }
 
 /// Predicates for `param_id` of the form `P: SomeTrait`. If
@@ -2129,7 +2154,11 @@ fn resolve_type_param_assoc_type_shorthand(
             containing_trait.trait_items(db).associated_type_by_name(&assoc_name)
         {
             let args = GenericArgs::identity_for_item(interner, containing_trait.into());
-            this_trait_resolution = Some(StoredEarlyBinder::bind((assoc_type, args.store())));
+            let trait_ref = TraitRef::new_from_args(interner, containing_trait.into(), args);
+            this_trait_resolution = Some(StoredEarlyBinder::bind(StoredAssocTypeShorthand::new(
+                assoc_type,
+                Binder::dummy(trait_ref),
+            )));
         }
     }
 
@@ -2137,18 +2166,21 @@ fn resolve_type_param_assoc_type_shorthand(
     for maybe_parent_generics in generics.iter_owners().rev() {
         ctx.set_owner(maybe_parent_generics);
         for pred in maybe_parent_generics.where_predicates() {
-            let WherePredicate::TypeBound { lifetimes: _, target, bound } = pred else {
-                continue;
-            };
-            let (TypeBound::Path(bounded_trait_path, TraitBoundModifier::None)
-            | TypeBound::ForLifetime(_, bounded_trait_path)) = *bound
-            else {
+            let WherePredicate::TypeBound { lifetimes, target, bound } = pred else {
                 continue;
             };
             let Some(target) = ctx.lower_ty_only_param(*target) else { continue };
             if target != param.into() {
                 continue;
             }
+            let (bound_lifetimes, bounded_trait_path) = match (lifetimes, bound) {
+                (Some(lifetimes), TypeBound::Path(path, TraitBoundModifier::None))
+                | (None, TypeBound::ForLifetime(lifetimes, path)) => {
+                    (Some(lifetimes.as_ref()), *path)
+                }
+                (None, TypeBound::Path(path, TraitBoundModifier::None)) => (None, *path),
+                _ => continue,
+            };
             let Some(TypeNs::TraitId(bounded_trait)) =
                 resolver.resolve_path_in_type_ns_fully(db, &ctx.store[bounded_trait_path])
             else {
@@ -2162,11 +2194,20 @@ fn resolve_type_param_assoc_type_shorthand(
                 continue;
             }
 
-            let Some((bounded_trait_ref, _)) =
-                ctx.lower_trait_ref_from_path(bounded_trait_path, param_ty)
-            else {
+            let (bounded_trait_ref, bound_vars) = match bound_lifetimes {
+                Some(lifetimes) => ctx.with_shifted_in(lifetimes, |ctx| {
+                    ctx.lower_trait_ref_from_path(bounded_trait_path, param_ty).map(|it| it.0)
+                }),
+                None => {
+                    let trait_ref =
+                        ctx.lower_trait_ref_from_path(bounded_trait_path, param_ty).map(|it| it.0);
+                    (trait_ref, ctx.peek_bound_vars())
+                }
+            };
+            let Some(bounded_trait_ref) = bounded_trait_ref else {
                 continue;
             };
+            let bounded_trait_ref = Binder::bind_with_vars(bounded_trait_ref, bound_vars);
             // Now, search from the start on the *bounded* trait like if we wrote `Self::Assoc`. Eventually, we'll get
             // the correct trait ref (or a cycle).
             let lookup_on_bounded_trait = resolve_type_param_assoc_type_shorthand(
@@ -2191,13 +2232,19 @@ fn resolve_type_param_assoc_type_shorthand(
                 }
                 AssocTypeShorthandResolution::Cycle => return AssocTypeShorthandResolution::Cycle,
             };
-            let (assoc_type, args) = assoc_type_and_args
-                .get_with(|(assoc_type, args)| (*assoc_type, args.as_ref()))
-                .skip_binder();
-            let args = EarlyBinder::bind(args)
-                .instantiate(interner, bounded_trait_ref.args)
-                .skip_norm_wip();
-            let current_result = StoredEarlyBinder::bind((assoc_type, args.store()));
+            let (assoc_type, super_trait_ref) =
+                assoc_type_and_args.get_with(|result| result.get(interner)).skip_binder();
+            let super_trait_clause: Clause<'_> = super_trait_ref.upcast(interner);
+            let Some(super_trait_ref) = super_trait_clause
+                .instantiate_supertrait(interner, bounded_trait_ref)
+                .as_trait_clause()
+                .map(|trait_predicate| trait_predicate.map_bound(|it| it.trait_ref))
+            else {
+                never!("a trait reference should upcast to a trait clause");
+                continue;
+            };
+            let current_result =
+                StoredEarlyBinder::bind(StoredAssocTypeShorthand::new(assoc_type, super_trait_ref));
             if let Some(this_trait_resolution) = &this_trait_resolution {
                 if *this_trait_resolution == current_result {
                     continue;
@@ -2995,6 +3042,7 @@ pub(crate) fn associated_type_by_name_including_super_traits_allow_ambiguity<'db
     trait_ref: TraitRef<'db>,
     name: Name,
 ) -> Option<(TypeAliasId, GenericArgs<'db>)> {
+    let interner = DbInterner::new_no_crate(db);
     let (AssocTypeShorthandResolution::Resolved(assoc_type)
     | AssocTypeShorthandResolution::Ambiguous { sub_trait_resolution: Some(assoc_type) }) =
         resolve_type_param_assoc_type_shorthand(
@@ -3006,12 +3054,11 @@ pub(crate) fn associated_type_by_name_including_super_traits_allow_ambiguity<'db
     else {
         return None;
     };
-    let (assoc_type, trait_args) = assoc_type
-        .get_with(|(assoc_type, trait_args)| (*assoc_type, trait_args.as_ref()))
-        .skip_binder();
-    let interner = DbInterner::new_no_crate(db);
-    Some((
-        assoc_type,
-        EarlyBinder::bind(trait_args).instantiate(interner, trait_ref.args).skip_norm_wip(),
-    ))
+    let (assoc_type, super_trait_ref) =
+        assoc_type.get_with(|result| result.get(interner)).skip_binder();
+    let super_trait_ref = super_trait_ref.no_bound_vars()?;
+    let trait_args = EarlyBinder::bind(super_trait_ref.args)
+        .instantiate(interner, trait_ref.args)
+        .skip_norm_wip();
+    Some((assoc_type, trait_args))
 }

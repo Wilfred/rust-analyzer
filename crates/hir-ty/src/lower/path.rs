@@ -36,6 +36,7 @@ use crate::{
     next_solver::{
         AliasTermKind, Binder, Clause, Const, DbInterner, EarlyBinder, ErrorGuaranteed, GenericArg,
         GenericArgs, Predicate, ProjectionPredicate, Region, TraitRef, Ty,
+        infer::BoundRegionConversionTime,
     },
 };
 
@@ -503,9 +504,14 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                     // FIXME: Emit an error.
                     return self.ctx.types.types.error;
                 };
-                assoc_type
-                    .get_with(|(assoc_type, trait_args)| (*assoc_type, trait_args.as_ref()))
-                    .skip_binder()
+                let (assoc_type, trait_ref) =
+                    assoc_type.get_with(|result| result.get(interner)).skip_binder();
+                let Some(trait_ref) =
+                    self.instantiate_assoc_type_trait_ref(span, assoc_type, trait_ref)
+                else {
+                    return self.ctx.types.types.error;
+                };
+                (assoc_type, trait_ref.args)
             }
             Some(TypeNs::SelfType(impl_)) => {
                 let Some(impl_trait) = db.impl_trait(impl_) else {
@@ -524,15 +530,15 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                     // FIXME: Emit an error.
                     return self.ctx.types.types.error;
                 };
-                let (assoc_type, trait_args) = assoc_type
-                    .get_with(|(assoc_type, trait_args)| (*assoc_type, trait_args.as_ref()))
-                    .skip_binder();
-                (
-                    assoc_type,
-                    EarlyBinder::bind(trait_args)
-                        .instantiate(interner, impl_trait.args)
-                        .skip_norm_wip(),
-                )
+                let (assoc_type, trait_ref) =
+                    assoc_type.get_with(|result| result.get(interner)).skip_binder();
+                let Some(trait_ref) = trait_ref.no_bound_vars() else {
+                    return self.ctx.types.types.error;
+                };
+                let trait_args = EarlyBinder::bind(trait_ref.args)
+                    .instantiate(interner, impl_trait.args)
+                    .skip_norm_wip();
+                (assoc_type, trait_args)
             }
             _ => return self.ctx.types.types.error,
         };
@@ -549,6 +555,22 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
         );
 
         Ty::new_projection_from_args(interner, assoc_type.into(), substs)
+    }
+
+    fn instantiate_assoc_type_trait_ref(
+        &mut self,
+        span: Span,
+        assoc_type: hir_def::TypeAliasId,
+        trait_ref: Binder<'db, TraitRef<'db>>,
+    ) -> Option<TraitRef<'db>> {
+        if let Some(trait_ref) = trait_ref.no_bound_vars() {
+            return Some(trait_ref);
+        }
+        Some(self.ctx.table()?.infer_ctxt.instantiate_binder_with_fresh_vars(
+            span,
+            BoundRegionConversionTime::AssocTypeProjection(assoc_type.into()),
+            trait_ref,
+        ))
     }
 
     fn lower_path_inner(&mut self, typeable: TyDefId, infer_args: bool, span: Span) -> Ty<'db> {
