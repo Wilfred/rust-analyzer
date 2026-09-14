@@ -12,15 +12,17 @@ use hir_def::{
 use itertools::Itertools;
 use la_arena::ArenaMap;
 use rustc_type_ir::{
-    AliasTyKind, TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor, Upcast,
-    inherent::{GenericArgs as _, IntoKind},
+    AliasTyKind, BoundVar, BoundVarIndexKind, DebruijnIndex, TypeFoldable, TypeFolder,
+    TypeSuperFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor, Upcast,
+    inherent::{GenericArgs as _, IntoKind, Ty as _},
 };
 
 use crate::{
     FieldType, GenericPredicates,
     db::HirDatabase,
     next_solver::{
-        AliasTy, Clause, Clauses, DbInterner, EarlyBinder, GenericArgs, ParamEnv,
+        AliasTy, Binder, BoundConst, BoundRegion, BoundTy, BoundVarKinds, Clause, Clauses, Const,
+        ConstKind, DbInterner, EarlyBinder, GenericArgs, ParamEnv, Region, RegionKind,
         StoredEarlyBinder, TraitRef, Ty, TyKind, Unnormalized, fold::fold_tys, generics::Generics,
     },
 };
@@ -348,33 +350,123 @@ fn extend_assoc_type_bounds<'db>(
     trait_id: TraitId,
     trait_: BuiltinDeriveImplTrait,
 ) {
+    struct FlattenBinders<'a, 'db> {
+        interner: DbInterner<'db>,
+        binders: &'a [BoundVarKinds<'db>],
+        current_index: DebruijnIndex,
+    }
+
+    impl FlattenBinders<'_, '_> {
+        fn flattened_var(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<BoundVar> {
+            let depth = debruijn.as_usize().checked_sub(self.current_index.as_usize())?;
+            let binder = self.binders.len().checked_sub(depth + 1)?;
+            let offset = self.binders[..binder].iter().map(|it| it.len()).sum::<usize>();
+            Some(BoundVar::from_usize(offset + var.as_usize()))
+        }
+    }
+
+    impl<'db> TypeFolder<DbInterner<'db>> for FlattenBinders<'_, 'db> {
+        fn cx(&self) -> DbInterner<'db> {
+            self.interner
+        }
+
+        fn fold_binder<T: TypeFoldable<DbInterner<'db>>>(
+            &mut self,
+            binder: Binder<'db, T>,
+        ) -> Binder<'db, T> {
+            self.current_index.shift_in(1);
+            let binder = binder.super_fold_with(self);
+            self.current_index.shift_out(1);
+            binder
+        }
+
+        fn fold_ty(&mut self, ty: Ty<'db>) -> Ty<'db> {
+            if let TyKind::Bound(BoundVarIndexKind::Bound(debruijn), bound_ty) = ty.kind()
+                && let Some(var) = self.flattened_var(debruijn, bound_ty.var)
+            {
+                return Ty::new_bound(
+                    self.interner,
+                    self.current_index,
+                    BoundTy { var, kind: bound_ty.kind },
+                );
+            }
+            ty.super_fold_with(self)
+        }
+
+        fn fold_region(&mut self, region: Region<'db>) -> Region<'db> {
+            if let RegionKind::ReBound(BoundVarIndexKind::Bound(debruijn), bound_region) =
+                region.kind()
+                && let Some(var) = self.flattened_var(debruijn, bound_region.var)
+            {
+                return Region::new_bound(
+                    self.interner,
+                    self.current_index,
+                    BoundRegion { var, kind: bound_region.kind },
+                );
+            }
+            region
+        }
+
+        fn fold_const(&mut self, konst: Const<'db>) -> Const<'db> {
+            if let ConstKind::Bound(BoundVarIndexKind::Bound(debruijn), bound_const) = konst.kind()
+                && let Some(var) = self.flattened_var(debruijn, bound_const.var)
+            {
+                return Const::new_bound(self.interner, self.current_index, BoundConst::new(var));
+            }
+            konst.super_fold_with(self)
+        }
+    }
+
     struct ProjectionFinder<'a, 'db> {
         interner: DbInterner<'db>,
         assoc_type_bounds: &'a mut Vec<Clause<'db>>,
         trait_id: TraitId,
         trait_: BuiltinDeriveImplTrait,
+        binders: Vec<BoundVarKinds<'db>>,
     }
 
     impl<'db> TypeVisitor<DbInterner<'db>> for ProjectionFinder<'_, 'db> {
         type Result = ();
 
+        fn visit_binder<T: TypeVisitable<DbInterner<'db>>>(
+            &mut self,
+            binder: &Binder<'db, T>,
+        ) -> Self::Result {
+            self.binders.push(binder.bound_vars());
+            binder.super_visit_with(self);
+            self.binders.pop();
+        }
+
         fn visit_ty(&mut self, t: Ty<'db>) -> Self::Result {
             if let TyKind::Alias(AliasTy { kind: AliasTyKind::Projection { .. }, .. }) = t.kind() {
-                self.assoc_type_bounds.push(
-                    TraitRef::new_from_args(
-                        self.interner,
-                        self.trait_id.into(),
-                        trait_args(self.trait_, t),
-                    )
-                    .upcast(self.interner),
+                let trait_ref = TraitRef::new_from_args(
+                    self.interner,
+                    self.trait_id.into(),
+                    trait_args(self.trait_, t),
                 );
+                let trait_ref = if self.binders.is_empty() {
+                    Binder::dummy(trait_ref)
+                } else {
+                    let trait_ref = trait_ref.fold_with(&mut FlattenBinders {
+                        interner: self.interner,
+                        binders: &self.binders,
+                        current_index: DebruijnIndex::ZERO,
+                    });
+                    let bound_vars = BoundVarKinds::new_from_iter(
+                        self.interner,
+                        self.binders.iter().flat_map(|it| it.iter()),
+                    );
+                    Binder::bind_with_vars(trait_ref, bound_vars)
+                };
+                self.assoc_type_bounds.push(trait_ref.upcast(self.interner));
             }
 
             t.super_visit_with(self)
         }
     }
 
-    let mut visitor = ProjectionFinder { interner, assoc_type_bounds, trait_id, trait_ };
+    let mut visitor =
+        ProjectionFinder { interner, assoc_type_bounds, trait_id, trait_, binders: Vec::new() };
     for (_, field) in fields.iter() {
         field.ty().instantiate_identity().skip_norm_wip().visit_with(&mut visitor);
     }
