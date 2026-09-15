@@ -367,7 +367,7 @@ fn is_trailing_trivia(token: &SyntaxToken) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{StaticIndex, fixture};
+    use crate::{StaticIndex, SymbolInformationKind, fixture};
     use ide_db::{FileRange, FxHashMap, FxHashSet, base_db::VfsPath};
     use syntax::TextSize;
 
@@ -607,5 +607,42 @@ struct Hello(i32);
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
         );
+    }
+
+    #[test]
+    fn builtin_derive_generated_by_proc_macro_has_valid_definition_range() {
+        let (analysis, _) = fixture::annotations_without_marker(
+            r#"
+//- proc_macros: generate_derive
+//- minicore: clone, derive
+//- /workspace/lib.rs crate:main
+proc_macros::generate_derive!();
+
+fn clone(value: Generated) {
+    value.clone();
+}
+"#,
+        );
+        let index = StaticIndex::compute(
+            &analysis,
+            VendoredLibrariesConfig::Included {
+                workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
+            },
+        );
+
+        let mut found_clone = false;
+        for (_, token) in index.tokens.iter() {
+            if token.kind != SymbolInformationKind::Method
+                || token.display_name.as_deref() != Some("clone")
+            {
+                continue;
+            }
+            found_clone = true;
+            let definition = token.definition.expect("generated Clone method should have a source");
+            assert_eq!(definition.file_id, token.references[0].range.file_id);
+            let file_len = TextSize::of(&*analysis.file_text(definition.file_id).unwrap());
+            assert!(definition.range.end() <= file_len, "invalid definition range: {definition:?}");
+        }
+        assert!(found_clone);
     }
 }
