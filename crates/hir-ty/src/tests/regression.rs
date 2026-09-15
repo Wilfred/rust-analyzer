@@ -3216,3 +3216,20 @@ fn main() {
     "#,
     );
 }
+
+#[test]
+fn defer_const_evaluation_with_infer_args() {
+    check_no_mismatches(
+        r#"
+trait Trait {
+    const N: usize;
+
+    fn from_values(values: [u8; Self::N]);
+}
+
+fn test() {
+    Trait::from_values(loop {});
+}
+"#,
+    );
+}

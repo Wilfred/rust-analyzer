@@ -259,6 +259,10 @@ impl<'db> SolverDelegate for SolverContext<'db> {
         param_env: ParamEnv<'db>,
         uv: UnevaluatedConst<'db>,
     ) -> Option<Const<'db>> {
+        let uv = self.resolve_vars_if_possible(uv);
+        if uv.args.has_non_region_infer() {
+            return None;
+        }
         let ec = match uv.def.0 {
             GeneralConstId::ConstId(c) => {
                 let subst = uv.args;
