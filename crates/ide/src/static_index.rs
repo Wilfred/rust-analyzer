@@ -7,12 +7,12 @@ use hir::{Crate, Module, Semantics, db::HirDatabase};
 use ide_db::{
     FileId, FileRange, FxHashMap, FxHashSet, RootDatabase,
     base_db::{SourceDatabase, VfsPath},
-    defs::{Definition, IdentClass},
+    defs::{Definition, IdentClass, NameClass},
     documentation::Documentation,
     famous_defs::FamousDefs,
     ra_fixture::RaFixtureConfig,
 };
-use syntax::{AstNode, NodeOrToken, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
+use syntax::{AstNode, NodeOrToken, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, ast};
 
 use crate::navigation_target::UpmappingResult;
 use crate::{
@@ -199,6 +199,7 @@ impl<'a> StaticIndex<'a> {
             None
         };
         let mut result = StaticIndexedFile { file_id, folds, tokens: vec![] };
+        let mut definitions = FxHashSet::default();
 
         let mut add_token = |def: Definition<'a>, range: TextRange, scope_node: &SyntaxNode| {
             let id = if let Some(it) = self.def_map.get(&def) {
@@ -241,13 +242,16 @@ impl<'a> StaticIndex<'a> {
                 it
             };
             let token = self.tokens.get_mut(id).unwrap();
-            token.references.push(ReferenceData {
-                range: FileRange { range, file_id },
-                is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
-                    Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
-                    None => false,
-                },
-            });
+            let is_definition = match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
+                Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
+                None => false,
+            };
+            if is_definition && !definitions.insert(def) {
+                return;
+            }
+            token
+                .references
+                .push(ReferenceData { range: FileRange { range, file_id }, is_definition });
             result.tokens.push((range, id));
         };
 
@@ -268,6 +272,31 @@ impl<'a> StaticIndex<'a> {
                 }
                 None => continue,
             };
+        }
+
+        // Names written in a macro body have no source token that resolves to their definition.
+        // Emit their definition occurrences at the call site used by navigation instead.
+        // Definitions mapped to the macro input are deduplicated by `add_token`.
+        let mut calls: Vec<_> = root.descendants().filter_map(ast::MacroCall::cast).collect();
+        while let Some(call) = calls.pop() {
+            let Some(expansion) = sema.expand_macro_call(&call) else { continue };
+            for node in expansion.value.descendants() {
+                if let Some(nested) = ast::MacroCall::cast(node.clone()) {
+                    calls.push(nested);
+                    continue;
+                }
+                let Some(name) = ast::Name::cast(node) else { continue };
+                let Some(def) = NameClass::classify(&sema, &name).and_then(NameClass::defined)
+                else {
+                    continue;
+                };
+                let Some(nav) = def.try_to_nav(&sema).map(UpmappingResult::call_site) else {
+                    continue;
+                };
+                if nav.file_id == file_id {
+                    add_token(def, nav.focus_or_full_range(), call.syntax());
+                }
+            }
         }
         self.files.push(result);
     }
@@ -466,6 +495,46 @@ mod tests {
         for (range, count) in range_set.iter() {
             if *count == 0 {
                 panic!("unfound reference {range:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn definition_for_item_named_in_macro_rules_body() {
+        let (analysis, ranges) = fixture::annotations_without_marker(
+            r#"
+//- /main.rs crate:main deps:macros
+  macros::declare!(Named);
+//^^^^^^^^^^^^^^^^ Error custom
+                 //^^^^^ Named
+fn f<T: Error>(_: Named) { T::custom(); }
+//- /macros.rs crate:macros
+#[macro_export]
+macro_rules! declare { ($name:ident) => { $crate::inner!($name); }; }
+#[macro_export]
+macro_rules! inner {
+    ($name:ident) => {
+        pub trait Error { fn custom(); }
+        pub struct $name;
+    };
+}
+"#,
+        );
+        let index = StaticIndex::compute(&analysis, VendoredLibrariesConfig::Excluded, false);
+        for (expected_range, names) in ranges {
+            let file = index.files.iter().find(|f| f.file_id == expected_range.file_id).unwrap();
+            for name in names.split_whitespace() {
+                let occurrences: Vec<_> = file
+                    .tokens
+                    .iter()
+                    .filter_map(|&(range, id)| {
+                        let token = index.tokens.get(id).unwrap();
+                        (token.display_name.as_deref() == Some(name)
+                            && token.definition == Some(FileRange { file_id: file.file_id, range }))
+                        .then_some(range)
+                    })
+                    .collect();
+                assert_eq!(occurrences, [expected_range.range], "{name}");
             }
         }
     }
