@@ -894,29 +894,38 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                 let ans = lhs.wrapping_mul(rhs);
                 destination.write_from_bytes(self, &ans.to_le_bytes()[0..destination.size])
             }
-            "wrapping_shl" | "unchecked_shl" => {
-                // FIXME: signed
+            "wrapping_shl" | "unchecked_shl" | "wrapping_shr" | "unchecked_shr" => {
                 let [lhs, rhs] = args else {
                     return Err(MirEvalError::InternalError(
-                        "unchecked_shl args are not provided".into(),
+                        "shift args are not provided".into(),
                     ));
                 };
-                let lhs = u128::from_le_bytes(pad16(lhs.get(self)?, IsSigned::No));
-                let rhs = u128::from_le_bytes(pad16(rhs.get(self)?, IsSigned::No));
-                let ans = lhs.wrapping_shl(rhs as u32);
-                destination.write_from_bytes(self, &ans.to_le_bytes()[0..destination.size])
-            }
-            "wrapping_shr" | "unchecked_shr" => {
-                // FIXME: signed
-                let [lhs, rhs] = args else {
+                if !matches!(lhs.ty.kind(), TyKind::Int(_) | TyKind::Uint(_))
+                    || !matches!(rhs.ty.kind(), TyKind::Int(_) | TyKind::Uint(_))
+                {
                     return Err(MirEvalError::InternalError(
-                        "unchecked_shr args are not provided".into(),
+                        "shift operands are not integers".into(),
                     ));
-                };
-                let lhs = u128::from_le_bytes(pad16(lhs.get(self)?, IsSigned::No));
+                }
+                let is_signed = matches!(lhs.ty.kind(), TyKind::Int(_));
+                let lhs_bytes = lhs.get(self)?;
+                let bits = (lhs_bytes.len() * 8) as u128;
+                let lhs = IntValue::from_bytes(lhs_bytes, is_signed);
                 let rhs = u128::from_le_bytes(pad16(rhs.get(self)?, IsSigned::No));
-                let ans = lhs.wrapping_shr(rhs as u32);
-                destination.write_from_bytes(self, &ans.to_le_bytes()[0..destination.size])
+                let shift_amount = if matches!(name, "wrapping_shl" | "wrapping_shr") {
+                    Some((rhs % bits) as u32)
+                } else {
+                    u32::try_from(rhs).ok()
+                };
+                let ans = shift_amount
+                    .and_then(|amount| match name {
+                        "wrapping_shl" | "unchecked_shl" => lhs.checked_shl(amount),
+                        _ => lhs.checked_shr(amount),
+                    })
+                    .ok_or_else(|| {
+                        MirEvalError::UndefinedBehavior("shift count out of bounds".to_owned())
+                    })?;
+                destination.write_from_bytes(self, &ans.to_bytes())
             }
             "unchecked_rem" => {
                 let [lhs, rhs] = args else {

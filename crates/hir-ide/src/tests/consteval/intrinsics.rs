@@ -344,6 +344,53 @@ fn allocator() {
 }
 
 #[test]
+fn unchecked_signed_right_shift() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn unchecked_shr<T, U>(x: T, y: U) -> T;
+
+const GOAL: i8 = unchecked_shr(-2i8, 1u32);
+"#,
+        -1,
+    );
+}
+
+#[test]
+fn unchecked_shifts_reject_invalid_counts() {
+    for intrinsic in ["unchecked_shl", "unchecked_shr"] {
+        for shift in ["8u32", "-1i8", "4294967296u64"] {
+            check_fail(
+                &format!(
+                    r#"
+#[rustc_intrinsic]
+pub fn {intrinsic}<T, U>(x: T, y: U) -> T;
+
+const GOAL: u8 = {intrinsic}(1u8, {shift});
+"#,
+                ),
+                |e| matches!(e, ConstEvalError::MirEvalError(MirEvalError::UndefinedBehavior(_))),
+            );
+        }
+    }
+}
+
+#[test]
+fn wrapping_shifts_respect_operand_width() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn wrapping_shl<T>(x: T, y: u32) -> T;
+#[rustc_intrinsic]
+pub fn wrapping_shr<T>(x: T, y: u32) -> T;
+
+const GOAL: bool = wrapping_shl(1u8, 8) == 1 && wrapping_shr(-2i8, 9) == -1;
+"#,
+        1,
+    );
+}
+
+#[test]
 fn round_ties_even_f32() {
     check_number(
         r#"
