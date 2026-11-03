@@ -130,7 +130,7 @@ function removeLeadingWhitespace(
 function getLeadingWhitespace(str: string, start: number = 0, end: number = str.length): string {
     for (let i = start; i < end; i++) {
         const chCode = str.charCodeAt(i);
-        if (chCode !== " ".charCodeAt(0) && chCode !== " ".charCodeAt(0)) {
+        if (chCode !== " ".charCodeAt(0) && chCode !== "\t".charCodeAt(0)) {
             return str.substring(start, i);
         }
     }
