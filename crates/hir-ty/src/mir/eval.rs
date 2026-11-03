@@ -1457,15 +1457,19 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         "destination of float to int cast",
                     )?;
                     let dest_bits = dest_size * 8;
-                    let (max, min) = if dest_bits == 128 {
-                        (i128::MAX, i128::MIN)
-                    } else if is_signed {
-                        let max = 1i128 << (dest_bits - 1);
-                        (max - 1, -max)
+                    let value = if is_signed {
+                        let (max, min) = if dest_bits == 128 {
+                            (i128::MAX, i128::MIN)
+                        } else {
+                            let max = 1i128 << (dest_bits - 1);
+                            (max - 1, -max)
+                        };
+                        (value as i128).min(max).max(min) as u128
                     } else {
-                        ((1i128 << dest_bits) - 1, 0)
+                        let max =
+                            if dest_bits == 128 { u128::MAX } else { (1u128 << dest_bits) - 1 };
+                        (value as u128).min(max)
                     };
-                    let value = (value as i128).min(max).max(min);
                     let result = value.to_le_bytes();
                     Owned(result[0..dest_size].to_vec())
                 }

@@ -310,6 +310,18 @@ const GOAL: bool = ((1u128 << 127) as f64) == 1701411834604692317316873037158841
 }
 
 #[test]
+fn float_to_u128_casts() {
+    check_number(r#"const GOAL: u128 = -1.0f64 as u128;"#, 0);
+    check_number(
+        r#"
+const GOAL: u128 = 170141183460469231731687303715884105728.0f64 as u128;
+"#,
+        i128::MIN,
+    );
+    check_number(r#"const GOAL: u128 = 1e300f64 as u128;"#, -1);
+}
+
+#[test]
 fn raw_pointer_equality() {
     check_number(
         r#"
