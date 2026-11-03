@@ -344,6 +344,63 @@ fn allocator() {
 }
 
 #[test]
+fn signed_division_intrinsics() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn unchecked_div<T>(x: T, y: T) -> T;
+
+const GOAL: i8 = unchecked_div(-6i8, 2);
+"#,
+        -3,
+    );
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn exact_div<T>(x: T, y: T) -> T;
+
+const GOAL: i8 = exact_div(6i8, -2);
+"#,
+        -3,
+    );
+}
+
+#[test]
+fn signed_remainder_intrinsic() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn unchecked_rem<T>(x: T, y: T) -> T;
+
+const GOAL: i8 = unchecked_rem(-7i8, 2);
+"#,
+        -1,
+    );
+}
+
+#[test]
+fn division_intrinsics_reject_signed_overflow() {
+    check_fail(
+        r#"
+#[rustc_intrinsic]
+pub fn unchecked_div<T>(x: T, y: T) -> T;
+
+const GOAL: i8 = unchecked_div(-128i8, -1);
+"#,
+        |e| matches!(e, ConstEvalError::MirEvalError(MirEvalError::UndefinedBehavior(_))),
+    );
+    check_fail(
+        r#"
+#[rustc_intrinsic]
+pub fn unchecked_rem<T>(x: T, y: T) -> T;
+
+const GOAL: i8 = unchecked_rem(-128i8, -1);
+"#,
+        |e| matches!(e, ConstEvalError::MirEvalError(MirEvalError::UndefinedBehavior(_))),
+    );
+}
+
+#[test]
 fn overflowing_signed_add() {
     check_number(
         r#"

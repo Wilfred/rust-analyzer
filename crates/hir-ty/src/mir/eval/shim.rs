@@ -919,32 +919,42 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                 destination.write_from_bytes(self, &ans.to_le_bytes()[0..destination.size])
             }
             "unchecked_rem" => {
-                // FIXME: signed
                 let [lhs, rhs] = args else {
                     return Err(MirEvalError::InternalError(
                         "unchecked_rem args are not provided".into(),
                     ));
                 };
-                let lhs = u128::from_le_bytes(pad16(lhs.get(self)?, IsSigned::No));
-                let rhs = u128::from_le_bytes(pad16(rhs.get(self)?, IsSigned::No));
+                if lhs.ty != rhs.ty {
+                    return Err(MirEvalError::InternalError(
+                        "unchecked_rem operand types differ".into(),
+                    ));
+                }
+                let is_signed = matches!(lhs.ty.kind(), TyKind::Int(_));
+                let lhs = IntValue::from_bytes(lhs.get(self)?, is_signed);
+                let rhs = IntValue::from_bytes(rhs.get(self)?, is_signed);
                 let ans = lhs.checked_rem(rhs).ok_or_else(|| {
                     MirEvalError::UndefinedBehavior("unchecked_rem with bad inputs".to_owned())
                 })?;
-                destination.write_from_bytes(self, &ans.to_le_bytes()[0..destination.size])
+                destination.write_from_bytes(self, &ans.to_bytes())
             }
             "unchecked_div" | "exact_div" => {
-                // FIXME: signed
                 let [lhs, rhs] = args else {
                     return Err(MirEvalError::InternalError(
                         "unchecked_div args are not provided".into(),
                     ));
                 };
-                let lhs = u128::from_le_bytes(pad16(lhs.get(self)?, IsSigned::No));
-                let rhs = u128::from_le_bytes(pad16(rhs.get(self)?, IsSigned::No));
+                if lhs.ty != rhs.ty {
+                    return Err(MirEvalError::InternalError(
+                        "unchecked_div operand types differ".into(),
+                    ));
+                }
+                let is_signed = matches!(lhs.ty.kind(), TyKind::Int(_));
+                let lhs = IntValue::from_bytes(lhs.get(self)?, is_signed);
+                let rhs = IntValue::from_bytes(rhs.get(self)?, is_signed);
                 let ans = lhs.checked_div(rhs).ok_or_else(|| {
-                    MirEvalError::UndefinedBehavior("unchecked_rem with bad inputs".to_owned())
+                    MirEvalError::UndefinedBehavior("unchecked_div with bad inputs".to_owned())
                 })?;
-                destination.write_from_bytes(self, &ans.to_le_bytes()[0..destination.size])
+                destination.write_from_bytes(self, &ans.to_bytes())
             }
             "add_with_overflow" | "sub_with_overflow" | "mul_with_overflow" => {
                 let [lhs, rhs] = args else {
