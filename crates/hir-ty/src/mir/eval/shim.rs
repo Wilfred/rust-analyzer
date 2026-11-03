@@ -951,6 +951,15 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                 let is_signed = matches!(lhs.ty.kind(), TyKind::Int(_));
                 let lhs = IntValue::from_bytes(lhs.get(self)?, is_signed);
                 let rhs = IntValue::from_bytes(rhs.get(self)?, is_signed);
+                if name == "exact_div"
+                    && lhs
+                        .checked_rem(rhs)
+                        .is_none_or(|rem| rem.to_bytes().iter().any(|&byte| byte != 0))
+                {
+                    return Err(MirEvalError::UndefinedBehavior(
+                        "exact_div with bad inputs".to_owned(),
+                    ));
+                }
                 let ans = lhs.checked_div(rhs).ok_or_else(|| {
                     MirEvalError::UndefinedBehavior("unchecked_div with bad inputs".to_owned())
                 })?;

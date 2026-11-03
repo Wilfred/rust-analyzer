@@ -344,6 +344,19 @@ fn allocator() {
 }
 
 #[test]
+fn exact_div_rejects_remainder() {
+    check_fail(
+        r#"
+#[rustc_intrinsic]
+pub fn exact_div<T>(x: T, y: T) -> T;
+
+const GOAL: u8 = exact_div(7u8, 3);
+"#,
+        |e| matches!(e, ConstEvalError::MirEvalError(MirEvalError::UndefinedBehavior(_))),
+    );
+}
+
+#[test]
 fn signed_division_intrinsics() {
     check_number(
         r#"
