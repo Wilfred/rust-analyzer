@@ -91,13 +91,17 @@ pub(super) fn patch_json_for_outdated_configs(json: &mut Value) {
     // callInfo_full -> signatureInfo_detail, signatureInfo_documentation_enable
     if let Some(Value::Bool(b)) = copy.pointer("/callInfo/full") {
         let sig_info = match b {
-            true => json!({ "signatureInfo": {
-                "documentation": {"enable": true}},
-                "detail": "full"
+            true => json!({
+                "signatureInfo": {
+                    "documentation": { "enable": true },
+                    "detail": "full"
+                }
             }),
-            false => json!({ "signatureInfo": {
-                "documentation": {"enable": false}},
-                "detail": "parameters"
+            false => json!({
+                "signatureInfo": {
+                    "documentation": { "enable": false },
+                    "detail": "parameters"
+                }
             }),
         };
         merge(json, sig_info);

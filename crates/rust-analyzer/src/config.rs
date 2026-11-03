@@ -4384,6 +4384,18 @@ mod tests {
     }
 
     #[test]
+    fn old_call_info_full_setting() {
+        let mut config =
+            Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);
+        let mut change = ConfigChange::default();
+        change.change_client_config(serde_json::json!({ "callInfo": { "full": false } }));
+
+        (config, _, _) = config.apply_change(change);
+        assert!(config.call_info().params_only);
+        assert!(!config.call_info().docs);
+    }
+
+    #[test]
     fn proc_macro_srv_null() {
         let mut config =
             Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);
