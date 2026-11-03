@@ -4349,6 +4349,28 @@ mod tests {
     }
 
     #[test]
+    fn old_highlight_related_settings() {
+        let mut config =
+            Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);
+        let mut change = ConfigChange::default();
+        change.change_client_config(serde_json::json!({
+            "highlightRelated": {
+                "breakPoints": false,
+                "exitPoints": false,
+                "yieldPoints": false,
+                "references": false,
+            }
+        }));
+
+        (config, _, _) = config.apply_change(change);
+        let related = config.highlight_related(None);
+        assert!(!related.break_points);
+        assert!(!related.exit_points);
+        assert!(!related.yield_points);
+        assert!(!related.references);
+    }
+
+    #[test]
     fn proc_macro_srv_null() {
         let mut config =
             Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);

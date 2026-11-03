@@ -46,10 +46,10 @@ pub(super) fn patch_json_for_outdated_configs(json: &mut Value) {
         diagnostics.enableExperimental -> diagnostics.experimental.enable;
         experimental.procAttrMacros -> procMacro.attributes.enable;
         highlighting.strings -> semanticHighlighting.strings.enable;
-        highlightRelated.breakPoints -> semanticHighlighting.breakPoints.enable;
-        highlightRelated.exitPoints -> semanticHighlighting.exitPoints.enable;
-        highlightRelated.yieldPoints -> semanticHighlighting.yieldPoints.enable;
-        highlightRelated.references -> semanticHighlighting.references.enable;
+        highlightRelated.breakPoints -> highlightRelated.breakPoints.enable;
+        highlightRelated.exitPoints -> highlightRelated.exitPoints.enable;
+        highlightRelated.yieldPoints -> highlightRelated.yieldPoints.enable;
+        highlightRelated.references -> highlightRelated.references.enable;
         hover.documentation -> hover.documentation.enable;
         hover.linksInHover -> hover.links.enable;
         hoverActions.linksInHover -> hover.links.enable;
