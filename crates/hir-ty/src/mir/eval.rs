@@ -3229,6 +3229,20 @@ macro_rules! int_bit_shifts {
     };
 }
 
+macro_rules! overflowing_int_op {
+    ( [ $op:ident ] $( $int_ty:ident )+ ) => {
+        fn $op(self, other: Self) -> (Self, bool) {
+            match (self, other) {
+                $( (Self::$int_ty(a), Self::$int_ty(b)) => {
+                    let (value, overflow) = a.$op(b);
+                    (Self::$int_ty(value), overflow)
+                }, )+
+                _ => panic!("incompatible integer types"),
+            }
+        }
+    };
+}
+
 macro_rules! unchecked_int_op {
     ( [ $name:ident, $op:tt ]  $( $int_ty:ident )+ ) => {
         fn $name(self, other: Self) -> Self {
@@ -3287,6 +3301,10 @@ impl IntValue {
     for_each_int_type!(checked_int_op, [checked_div]);
     for_each_int_type!(checked_int_op, [checked_rem]);
     for_each_int_type!(checked_int_op, [checked_mul]);
+
+    for_each_int_type!(overflowing_int_op, [overflowing_add]);
+    for_each_int_type!(overflowing_int_op, [overflowing_sub]);
+    for_each_int_type!(overflowing_int_op, [overflowing_mul]);
 
     for_each_int_type!(int_bit_shifts, [checked_shl]);
     for_each_int_type!(int_bit_shifts, [checked_shr]);

@@ -344,6 +344,55 @@ fn allocator() {
 }
 
 #[test]
+fn overflowing_signed_add() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn add_with_overflow<T>(x: T, y: T) -> (T, bool);
+
+const GOAL: bool = {
+    let (value, overflow) = add_with_overflow(127i8, 1);
+    value == -128 && overflow
+};
+"#,
+        1,
+    );
+}
+
+#[test]
+fn overflowing_unsigned_mul() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn mul_with_overflow<T>(x: T, y: T) -> (T, bool);
+
+const GOAL: bool = {
+    let (value, overflow) = mul_with_overflow(65535u16, 256);
+    value == 65280 && overflow
+};
+"#,
+        1,
+    );
+}
+
+#[test]
+fn overflowing_signed_sub() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn sub_with_overflow<T>(x: T, y: T) -> (T, bool);
+
+const GOAL: bool = {
+    let (value, overflow) = sub_with_overflow(-128i8, 1);
+    let (negative, no_overflow) = sub_with_overflow(-1i8, 1);
+    value == 127 && overflow && negative == -2 && !no_overflow
+};
+"#,
+        1,
+    );
+}
+
+#[test]
 fn overflowing_add() {
     check_number(
         r#"
