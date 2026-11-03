@@ -4371,6 +4371,19 @@ mod tests {
     }
 
     #[test]
+    fn old_hide_named_constructor_setting() {
+        let mut config =
+            Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);
+        let mut change = ConfigChange::default();
+        change.change_client_config(serde_json::json!({
+            "inlayHints": { "hideNamedConstructorHints": true }
+        }));
+
+        (config, _, _) = config.apply_change(change);
+        assert!(config.inlay_hints(MiniCore::default()).hide_named_constructor_hints);
+    }
+
+    #[test]
     fn proc_macro_srv_null() {
         let mut config =
             Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);
