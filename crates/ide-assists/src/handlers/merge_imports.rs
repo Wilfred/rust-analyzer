@@ -162,6 +162,30 @@ mod tests {
     }
 
     #[test]
+    fn test_merge_anonymous_import_preserves_name() {
+        check_assist(
+            merge_imports,
+            r"
+use std::fmt::Display$0;
+use std::fmt::Display as _;
+",
+            r"
+use std::fmt::Display;
+",
+        );
+        check_assist(
+            merge_imports,
+            r"
+use std::fmt::Display as _$0;
+use std::fmt::Display;
+",
+            r"
+use std::fmt::Display;
+",
+        );
+    }
+
+    #[test]
     fn test_merge_equal() {
         cov_mark::check!(merge_with_use_item_neighbors);
         check_assist(

@@ -106,7 +106,12 @@ fn try_merge_trees_with_factory(
                 return None;
             }
 
-            return Some(rhs);
+            // An anonymous import must not replace an import that binds a name.
+            return Some(if rhs.rename().and_then(|rename| rename.underscore_token()).is_some() {
+                lhs
+            } else {
+                rhs
+            });
         } else {
             lhs = split_prefix(&lhs, &lhs_prefix, make)?;
             rhs = split_prefix(&rhs, &rhs_prefix, make)?;
