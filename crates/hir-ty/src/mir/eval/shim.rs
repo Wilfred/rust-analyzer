@@ -581,7 +581,8 @@ impl<'a, 'db> Evaluator<'a, 'db> {
         if let Some(name) = name.strip_suffix("f64") {
             let result = match name {
                 "sqrt" | "sin" | "cos" | "exp" | "exp2" | "log" | "log10" | "log2" | "fabs"
-                | "floor" | "ceil" | "trunc" | "rint" | "nearbyint" | "round" | "roundeven" => {
+                | "floor" | "ceil" | "trunc" | "rint" | "nearbyint" | "round" | "roundeven"
+                | "round_ties_even_" => {
                     let [arg] = args else {
                         return Err(MirEvalError::InternalError(
                             "f64 intrinsic signature doesn't match fn (f64) -> f64".into(),
@@ -601,11 +602,10 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         "floor" => arg.floor(),
                         "ceil" => arg.ceil(),
                         "trunc" => arg.trunc(),
-                        // FIXME: these rounds should be different, but only `.round()` is stable now.
-                        "rint" => arg.round(),
-                        "nearbyint" => arg.round(),
                         "round" => arg.round(),
-                        "roundeven" => arg.round(),
+                        "rint" | "nearbyint" | "roundeven" | "round_ties_even_" => {
+                            arg.round_ties_even()
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -653,7 +653,8 @@ impl<'a, 'db> Evaluator<'a, 'db> {
         if let Some(name) = name.strip_suffix("f32") {
             let result = match name {
                 "sqrt" | "sin" | "cos" | "exp" | "exp2" | "log" | "log10" | "log2" | "fabs"
-                | "floor" | "ceil" | "trunc" | "rint" | "nearbyint" | "round" | "roundeven" => {
+                | "floor" | "ceil" | "trunc" | "rint" | "nearbyint" | "round" | "roundeven"
+                | "round_ties_even_" => {
                     let [arg] = args else {
                         return Err(MirEvalError::InternalError(
                             "f32 intrinsic signature doesn't match fn (f32) -> f32".into(),
@@ -673,11 +674,10 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         "floor" => arg.floor(),
                         "ceil" => arg.ceil(),
                         "trunc" => arg.trunc(),
-                        // FIXME: these rounds should be different, but only `.round()` is stable now.
-                        "rint" => arg.round(),
-                        "nearbyint" => arg.round(),
                         "round" => arg.round(),
-                        "roundeven" => arg.round(),
+                        "rint" | "nearbyint" | "roundeven" | "round_ties_even_" => {
+                            arg.round_ties_even()
+                        }
                         _ => unreachable!(),
                     }
                 }

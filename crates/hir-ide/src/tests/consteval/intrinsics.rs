@@ -344,6 +344,52 @@ fn allocator() {
 }
 
 #[test]
+fn round_ties_even_f32() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn round_ties_even_f32(x: f32) -> f32;
+
+const GOAL: i32 = round_ties_even_f32(2.5) as i32;
+"#,
+        2,
+    );
+}
+
+#[test]
+fn round_ties_even_f64() {
+    check_number(
+        r#"
+#[rustc_intrinsic]
+pub fn round_ties_even_f64(x: f64) -> f64;
+
+const GOAL: bool = round_ties_even_f64(-2.5) == -2.0
+    && round_ties_even_f64(3.5) == 4.0;
+"#,
+        1,
+    );
+}
+
+#[test]
+fn round_ties_even_legacy() {
+    for intrinsic in ["rint", "nearbyint", "roundeven"] {
+        for float in ["f32", "f64"] {
+            check_number(
+                &format!(
+                    r#"
+#[rustc_intrinsic]
+pub fn {intrinsic}{float}(x: {float}) -> {float};
+
+const GOAL: i32 = {intrinsic}{float}(2.5) as i32;
+"#,
+                ),
+                2,
+            );
+        }
+    }
+}
+
+#[test]
 fn exact_div_rejects_remainder() {
     check_fail(
         r#"
