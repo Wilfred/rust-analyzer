@@ -716,11 +716,12 @@ fn signature_help_for_tuple_pat_ish<'db>(
         Some(if is_left_of_rest_pat {
             commas.take_while(|t| t.text_range().start() <= token.text_range().start()).count()
         } else {
+            let last_pat_end = field_pats.last().map(|it| it.syntax().text_range().end());
             let n_commas = commas
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .take_while(|t| t.text_range().start() > token.text_range().start())
+                .filter(|t| {
+                    t.text_range().start() > token.text_range().start()
+                        && last_pat_end.is_none_or(|end| t.text_range().start() < end)
+                })
                 .count();
             fields.len().saturating_sub(1).saturating_sub(n_commas)
         })
@@ -1244,6 +1245,33 @@ fn main() {
                 ------
                 struct S (u32, i32)
                           ---  ^^^
+            "#]],
+        );
+    }
+
+    #[test]
+    fn tuple_pat_rest_with_trailing_comma() {
+        check(
+            r#"
+fn main() {
+    let (.., last$0,): (i32, bool);
+}
+"#,
+            expect![[r#"
+                (i32, bool)
+                 ---  ^^^^
+            "#]],
+        );
+        check(
+            r#"
+struct S(i32, bool);
+fn main() {
+    let S(.., last$0,);
+}
+"#,
+            expect![[r#"
+                struct S (i32, bool)
+                          ---  ^^^^
             "#]],
         );
     }
