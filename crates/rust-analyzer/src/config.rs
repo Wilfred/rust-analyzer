@@ -4384,6 +4384,23 @@ mod tests {
     }
 
     #[test]
+    fn old_check_all_features_overrides_selected_features() {
+        let mut config =
+            Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);
+        let mut change = ConfigChange::default();
+        change.change_client_config(serde_json::json!({
+            "checkOnSave": { "allFeatures": true, "features": ["selected"] }
+        }));
+
+        (config, _, _) = config.apply_change(change);
+        let FlycheckConfig::Automatic { cargo_options, .. } = config.flycheck(None) else {
+            panic!("expected automatic flycheck");
+        };
+        assert!(cargo_options.all_features);
+        assert!(cargo_options.features.is_empty());
+    }
+
+    #[test]
     fn old_call_info_full_setting() {
         let mut config =
             Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);

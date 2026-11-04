@@ -112,11 +112,6 @@ pub(super) fn patch_json_for_outdated_configs(json: &mut Value) {
         merge(json, json!({ "cargo": { "features": "all" } }));
     }
 
-    // checkOnSave_allFeatures, checkOnSave_features -> check_features
-    if let Some(Value::Bool(true)) = copy.pointer("/checkOnSave/allFeatures") {
-        merge(json, json!({ "check": { "features": "all" } }));
-    }
-
     // completion_addCallArgumentSnippets completion_addCallParenthesis -> completion_callable_snippets
     'completion: {
         let res = match (
@@ -139,6 +134,11 @@ pub(super) fn patch_json_for_outdated_configs(json: &mut Value) {
             merge(json, json!({ "checkOnSave": b }));
         }
         merge(json, json!({ "check": obj }));
+    }
+
+    // Apply this after copying checkOnSave so its features list cannot overwrite "all".
+    if let Some(Value::Bool(true)) = copy.pointer("/checkOnSave/allFeatures") {
+        merge(json, json!({ "check": { "features": "all" } }));
     }
 }
 
