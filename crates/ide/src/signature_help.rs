@@ -703,15 +703,18 @@ fn signature_help_for_tuple_pat_ish<'db>(
     fields: impl ExactSizeIterator<Item = hir::Type<'db>>,
     display_target: DisplayTarget,
 ) -> SignatureHelp {
-    let rest_pat = field_pats.find(|it| matches!(it, ast::Pat::RestPat(_)));
-    let is_left_of_rest_pat =
-        rest_pat.is_none_or(|it| token.text_range().start() < it.syntax().text_range().end());
+    let rest_pat =
+        field_pats.by_ref().enumerate().find(|(_, it)| matches!(it, ast::Pat::RestPat(_)));
+    let is_left_of_rest_pat = rest_pat
+        .as_ref()
+        .is_none_or(|(_, it)| token.text_range().start() < it.syntax().text_range().end());
 
     let commas = pat
         .children_with_tokens()
         .filter_map(NodeOrToken::into_token)
         .filter(|t| t.kind() == T![,]);
 
+    let n_pats_before_rest = rest_pat.map_or(0, |(index, _)| index);
     res.active_parameter = {
         Some(if is_left_of_rest_pat {
             commas.take_while(|t| t.text_range().start() <= token.text_range().start()).count()
@@ -725,7 +728,8 @@ fn signature_help_for_tuple_pat_ish<'db>(
                 .count();
             fields.len().saturating_sub(1).saturating_sub(n_commas)
         })
-    };
+    }
+    .filter(|&index| is_left_of_rest_pat || index >= n_pats_before_rest);
 
     let mut buf = String::new();
     for ty in fields {
@@ -2443,10 +2447,9 @@ fn main() {
     let (1, 3, .., $0);
 }
 "#,
-            // FIXME: This is wrong, this should not mark the last as active
             expect![[r#"
                 (i32, i32)
-                 ---  ^^^
+                 ---  ---
             "#]],
         );
     }
