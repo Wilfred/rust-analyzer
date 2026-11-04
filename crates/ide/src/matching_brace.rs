@@ -40,6 +40,9 @@ pub(crate) fn matching_brace(file: &SourceFile, offset: TextSize) -> Option<Text
     } else {
         // when the offset is not at a brace, find first parent
         current.last()?.parent_ancestors().find_map(|x| {
+            if ast::BinExpr::can_cast(x.kind()) || ast::OrPat::can_cast(x.kind()) {
+                return None;
+            }
             x.children_with_tokens()
                 .filter_map(|it| it.into_token())
                 // with ending brace
@@ -83,6 +86,11 @@ mod tests {
         do_check(
             "fn func(x) { re$0turn (2 * (x + 3)) + 5;}",
             "fn func(x) { return (2 * (x + 3)) + 5;$0}",
+        );
+        do_check("fn main() { let _ = $0a > b; }", "fn main() { let _ = a > b; $0}");
+        do_check(
+            "fn main() { match 1 { 1 | $02 => (), } }",
+            "fn main() { match 1 { 1 | 2 => (), $0} }",
         );
 
         {
