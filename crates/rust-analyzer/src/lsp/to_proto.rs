@@ -546,9 +546,9 @@ pub(crate) fn signature_help(
                     label.push_str(", ");
                 }
                 first = false;
-                let start = label.len() as u32;
+                let start = label.encode_utf16().count() as u32;
                 label.push_str(param);
-                let end = label.len() as u32;
+                let end = start + param.encode_utf16().count() as u32;
                 params.push(lsp_types::ParameterInformation {
                     label: lsp_types::ParameterInformationLabel::Tuple((start, end)),
                     documentation: None,
@@ -2153,6 +2153,38 @@ fn main() {
             assert_eq!(folding_range.end_line, *end_line);
             assert_eq!(folding_range.end_character, None);
         }
+    }
+
+    #[test]
+    fn concise_signature_parameter_offsets_are_utf16() {
+        let (offset, text) = extract_offset(
+            r#"
+fn foo(𝒜: u8, β: bool) {}
+fn main() { foo($0); }
+"#,
+        );
+        let (analysis, file_id) = Analysis::from_single_file(
+            text,
+            Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
+        );
+        let help = signature_help(
+            analysis.signature_help(FilePosition { file_id, offset }).unwrap().unwrap(),
+            CallInfoConfig { params_only: true, docs: false },
+            true,
+        );
+        let signature = &help.signatures[0];
+        assert_eq!(signature.label, "𝒜: u8, β: bool");
+        let offsets = signature
+            .parameters
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|parameter| match parameter.label {
+                lsp_types::ParameterInformationLabel::Tuple(offsets) => offsets,
+                _ => panic!("expected label offsets"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(offsets, [(0, 6), (8, 15)]);
     }
 
     #[test]
