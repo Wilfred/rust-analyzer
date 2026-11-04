@@ -117,9 +117,11 @@ const KNOWN_ARCH: [&str; 20] = [
     "x86_64",
 ];
 
-const KNOWN_ENV: [&str; 7] = ["eabihf", "gnu", "gnueabihf", "msvc", "relibc", "sgx", "uclibc"];
+const KNOWN_ENV: [&str; 8] =
+    ["eabihf", "gnu", "gnueabihf", "msvc", "musl", "relibc", "sgx", "uclibc"];
 
-const KNOWN_OS: [&str; 22] = [
+const KNOWN_OS: [&str; 25] = [
+    "android",
     "cuda",
     "dragonfly",
     "emscripten",
@@ -129,8 +131,10 @@ const KNOWN_OS: [&str; 22] = [
     "hermit",
     "hyperlight",
     "illumos",
+    "ios",
     "l4re",
     "linux",
+    "macos",
     "netbsd",
     "none",
     "openbsd",
@@ -146,3 +150,24 @@ const KNOWN_OS: [&str; 22] = [
 
 const KNOWN_VENDOR: [&str; 8] =
     ["apple", "fortanix", "nvidia", "pc", "sony", "unknown", "wrs", "uwp"];
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::check_edit;
+
+    #[test]
+    fn complete_common_target_values() {
+        for (key, value) in [
+            ("target_os", "android"),
+            ("target_os", "ios"),
+            ("target_os", "macos"),
+            ("target_env", "musl"),
+        ] {
+            check_edit(
+                value,
+                &format!(r#"#[cfg({key} = "$0")] struct S;"#),
+                &format!(r#"#[cfg({key} = "{value}")] struct S;"#),
+            );
+        }
+    }
+}
